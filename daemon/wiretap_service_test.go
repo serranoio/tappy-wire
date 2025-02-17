@@ -1,6 +1,7 @@
 package daemon
 
 // this test does not work. I have no idea how to test the platform. It will take a decent amount of work to dig deep.
+// the intention is to mock the platform's model.Request, but I just don't know how
 // func TestWiretapService(t *testing.T) {
 // 	config := `
 // redirectURL: http://localhost:8000
