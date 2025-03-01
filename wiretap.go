@@ -5,8 +5,9 @@ package main
 
 import (
 	"embed"
-	"github.com/pb33f/wiretap/cmd"
 	"time"
+
+	"github.com/pb33f/wiretap/cmd"
 )
 
 //go:embed ui/dist
