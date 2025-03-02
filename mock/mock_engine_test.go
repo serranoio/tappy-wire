@@ -6,6 +6,7 @@ package mock
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -16,6 +17,96 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var doc = `
+openapi: 3.0.0
+info:
+  title: Wild West API
+  version: 1.0.0
+  description: Howdy partner! This here's the Wild West API, where we manage our saloon operations and keep track of our cowboys.
+  contact:
+    name: Sheriff API
+    email: sheriff@wildwest.com
+    url: https://wildwest.com
+servers:
+  - url: https://api.wildwest.com
+    description: Main saloon server
+paths:
+  /saloon/serve:
+    get:
+      summary: Serve a drink at the saloon
+      responses:
+        '200':
+          description: Serves you a mocktail
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Mocktail'
+                  - $ref: '#/components/schemas/Mojito'
+components:
+  schemas:
+    Mocktail:
+      type: object
+      properties:
+        spirit:
+          type: string
+          description: non-alcoholic spirit in the drink
+          example: 'Little Saints St. Ember'
+        rocks:
+          type: boolean 
+          description: mocktail on rocks
+        glass:
+          type: string
+          description: shape of glass
+          enum: ['Martini', 'Highball', 'Collins', 'Rocks']
+    Mojito:
+      type: object
+      properties:
+        rum:
+          type: bool
+          description: Includes rum
+        rocks:
+          type: boolean 
+          description: mocktail on rocks
+        glass:
+          type: string
+          description: shape of glass
+          enum: ['Highball', 'Collins']
+        fruit:
+          type: array
+          items:
+            type: string
+            enum: ['Orange Slices', 'Strawberries', 'Lime']
+        herbs:
+          type: array
+          items:
+            type: string
+            enum: ['Mint', 'Marijuana']
+`
+
+func TestMockEngineOneOf(t *testing.T) {
+
+	d, _ := libopenapi.NewDocument([]byte(doc))
+	compiled, _ := d.BuildV3Model()
+
+	me := NewMockEngine(&compiled.Model, false, true)
+
+	request, _ := http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+
+	path, _ := me.findPath(request)
+	operation := me.findOperation(request, path)
+	mt, _ := me.findBestMediaTypeMatch(operation, request, []string{"200"})
+
+	const mocktail = "Mocktail"
+	mocktailSchema, _ := me.GetPolymorphicSchema(mt, mocktail)
+	// this generates an error. It doesn't produce the mock
+	mock, mockErr := me.mockEngine.GenerateMock(mocktailSchema, "")
+
+	fmt.Println(mock, mockErr)
+
+}
 
 // var doc *v3.Document
 var giftshopBytes []byte

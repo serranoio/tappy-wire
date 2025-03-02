@@ -14,6 +14,7 @@ import (
 	libopenapierrs "github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/libopenapi-validator/helpers"
 	"github.com/pb33f/libopenapi-validator/paths"
+	"github.com/pb33f/libopenapi/datamodel/high/base"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/renderer"
 	"github.com/pb33f/wiretap/shared"
@@ -54,13 +55,19 @@ func (rme *ResponseMockEngine) GenerateResponse(request *http.Request) ([]byte, 
 // https://swagger.io/docs/specification/v3_0/data-models/oneof-anyof-allof-not/
 // anyOf, oneOf, allOf, not
 // only supports v3 model, f the rest LOL
-func (rme *ResponseMockEngine) GetSchemaCombination(mediaType *v3.MediaType) {
-	// schema, _ := mediaType.Schema.BuildSchema()
+func (rme *ResponseMockEngine) GetPolymorphicSchema(mediaType *v3.MediaType, preferredRef string) (*base.SchemaProxy, error) {
+	schema, err := mediaType.Schema.BuildSchema()
+
+	fmt.Println(err)
 
 	// only handle oneOf now
+	for _, allProperties := range schema.OneOf {
+		if strings.Contains(allProperties.GetReference(), preferredRef) {
+			return allProperties, nil
+		}
+	}
 
-	// for _, types := range schema
-
+	return nil, fmt.Errorf("could not find polymorphic")
 }
 
 func (rme *ResponseMockEngine) ValidateSecurity(request *http.Request, operation *v3.Operation) error {
