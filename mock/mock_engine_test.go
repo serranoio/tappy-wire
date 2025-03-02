@@ -99,12 +99,20 @@ func TestMockEngineOneOf(t *testing.T) {
 	operation := me.findOperation(request, path)
 	mt, _ := me.findBestMediaTypeMatch(operation, request, []string{"200"})
 
-	const mocktail = "Mocktail"
-	mocktailSchema, _ := me.GetPolymorphicSchema(mt, mocktail)
+	drink := "Mocktail"
+	drinkSchema, _ := me.GetPolymorphicSchema(mt, drink)
 	// this generates an error. It doesn't produce the mock
-	mock, mockErr := me.mockEngine.GenerateMock(mocktailSchema, "")
+	mock, mockErr := me.mockEngine.GenerateMock(drinkSchema.Schema(), "")
+	assert.Nil(t, mockErr)
+	fmt.Println(mock)
 
-	fmt.Println(mock, mockErr)
+	drink = "Mojito"
+	drinkSchema, _ = me.GetPolymorphicSchema(mt, drink)
+	// this generates an error. It doesn't produce the mock
+	mock, mockErr = me.mockEngine.GenerateMock(drinkSchema.Schema(), "")
+
+	fmt.Println(mock)
+	assert.Nil(t, mockErr)
 
 }
 
