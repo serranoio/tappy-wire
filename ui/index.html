@@ -1,29 +1,34 @@
 <!DOCTYPE html>
 <html lang="en-US" class="sl-theme-dark">
-<head lang="en">
+  <head lang="en">
     <title>wiretap: Sniff your API traffic for OpenAPI compliance</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <meta name="description"
-          content="wiretap is a tool that sniffs your API traffic and validates it against an OpenAPI specification.">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    />
+    <meta
+      name="description"
+      content="wiretap is a tool that sniffs your API traffic and validates it against an OpenAPI specification."
+    />
     <script>
-        localStorage.setItem('wiretapPort', '%WIRETAP_PORT%')
-        localStorage.setItem('wiretapTLS', '%WIRETAP_TLS%')
-        localStorage.setItem('wiretapHost', '%WIRETAP_HOST%')
-        // localStorage.setItem('wiretapHost', 'localhost')
-        // localStorage.setItem('wiretapPort', '9092');
-        // localStorage.setItem('wiretapTLS', 'true');
-        const version = '%WIRETAP_VERSION%';
-        const existingVersion = localStorage.getItem('wiretapVersion');
-        if (existingVersion !== version) {
-            localStorage.setItem('wiretapVersion', version);
-            localStorage.setItem('wiretapWipeCache', 'true');
-        }
+      // localStorage.setItem("wiretapPort", "%WIRETAP_PORT%");
+      // localStorage.setItem("wiretapTLS", "%WIRETAP_TLS%");
+      // localStorage.setItem("wiretapHost", "%WIRETAP_HOST%");
+      localStorage.setItem("wiretapHost", "localhost");
+      localStorage.setItem("wiretapPort", "5002");
+      // localStorage.setItem("wiretapTLS", "true");
+      const version = "%WIRETAP_VERSION%";
+      const existingVersion = localStorage.getItem("wiretapVersion");
+      if (existingVersion !== version) {
+        localStorage.setItem("wiretapVersion", version);
+        localStorage.setItem("wiretapWipeCache", "true");
+      }
     </script>
     <script type="module" src="/src/index.ts" defer></script>
     <script type="module" src="/src/workers/link_cache_worker.ts"></script>
-</head>
-<body>
+  </head>
+  <body>
     <!-- start wiretap. To learn more: https://pb33f.io/wiretap -->
     <wiretap-application></wiretap-application>
-</body>
+  </body>
 </html>
