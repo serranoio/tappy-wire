@@ -6,7 +6,6 @@ package mock
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var doc = `
+var WildWestDoc = `
 openapi: 3.0.0
 info:
   title: Wild West API
@@ -85,36 +84,7 @@ components:
             enum: ['Mint', 'Marijuana']
 `
 
-func TestMockEngineOneOf(t *testing.T) {
-
-	d, _ := libopenapi.NewDocument([]byte(doc))
-	compiled, _ := d.BuildV3Model()
-
-	me := NewMockEngine(&compiled.Model, false, true)
-
-	request, _ := http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
-	request.Header.Set(helpers.ContentTypeHeader, "application/json")
-
-	path, _ := me.findPath(request)
-	operation := me.findOperation(request, path)
-	mt, _ := me.findBestMediaTypeMatch(operation, request, []string{"200"})
-
-	drink := "Mocktail"
-	drinkSchema, _ := me.GetPolymorphicSchema(mt, drink)
-	// this generates an error. It doesn't produce the mock
-	mock, mockErr := me.mockEngine.GenerateMock(drinkSchema.Schema(), "")
-	assert.Nil(t, mockErr)
-	fmt.Println(mock)
-
-	drink = "Mojito"
-	drinkSchema, _ = me.GetPolymorphicSchema(mt, drink)
-	// this generates an error. It doesn't produce the mock
-	mock, mockErr = me.mockEngine.GenerateMock(drinkSchema.Schema(), "")
-
-	fmt.Println(mock)
-	assert.Nil(t, mockErr)
-
-}
+const WIRETAP_TRAFFIC_CONTROL = "Wiretap-Traffic-Control"
 
 // var doc *v3.Document
 var giftshopBytes []byte
@@ -146,6 +116,71 @@ func resetPetstoreState() *v3.Document {
 	return &compiled.Model
 }
 
+// I need to redesign mock mode so that all of the errors can be sent to the console
+// and so that they can be sent to the UI
+
+func TestMockEngineOneOfInWorkflow(t *testing.T) {
+	d, _ := libopenapi.NewDocument([]byte(WildWestDoc))
+	compiled, _ := d.BuildV3Model()
+	me := NewMockEngine(&compiled.Model, false, true)
+
+	// happy path does not error, it generates mock
+	request, _ := http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+	request.Header.Set(WIRETAP_TRAFFIC_CONTROL, "#/components/schemas/Mocktail")
+	_, mockMetadata, mockErr := me.GenerateResponse(request)
+	assert.Nil(t, mockErr)
+	assert.Equal(t, 200, mockMetadata.StatusCode)
+
+	// workflow has traffic control $ref that is not in the specification
+	// should default as the first provided mock, this one is Mocktail
+	request, _ = http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+	request.Header.Set(WIRETAP_TRAFFIC_CONTROL, "#/components/schemas/Absinthe")
+	_, mockMetadata, mockErr = me.GenerateResponse(request)
+	assert.Nil(t, mockErr)
+	assert.Equal(t, 200, mockMetadata.StatusCode)
+
+	// provided workflow has traffic control set to proxy should NEVER TRIGGER mock engine
+	// but whatever, the last case happens as well
+	request, _ = http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+	request.Header.Set(WIRETAP_TRAFFIC_CONTROL, "#/components/schemas/proxy")
+	assert.Nil(t, mockErr)
+	assert.Equal(t, 200, mockMetadata.StatusCode)
+
+	// provided workflow has traffic control that is not set, should default to first schema in the definition
+	request, _ = http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+	request.Header.Set(WIRETAP_TRAFFIC_CONTROL, "#/components/schemas/Absinthe")
+}
+
+func TestMockEngineOneOf(t *testing.T) {
+	d, _ := libopenapi.NewDocument([]byte(WildWestDoc))
+	compiled, _ := d.BuildV3Model()
+	me := NewMockEngine(&compiled.Model, false, true)
+
+	request, _ := http.NewRequest(http.MethodGet, "https://api.wildwest.com/saloon/serve", nil)
+	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+
+	path, _ := me.findPath(request)
+	operation := me.findOperation(request, path)
+	mt, _ := me.findBestMediaTypeMatch(operation, request, []string{"200"})
+
+	drink := "#/components/schemas/Mocktail"
+	drinkSchema, foundPolymorphicSchema, _ := me.GetPolymorphicSchema(mt, drink)
+	_, mockErr := me.mockEngine.GenerateMock(drinkSchema, "")
+	assert.Nil(t, mockErr)
+	assert.True(t, foundPolymorphicSchema)
+
+	drink = "#/components/schemas/Mojito"
+	drinkSchema, foundPolymorphicSchema, _ = me.GetPolymorphicSchema(mt, drink)
+	_, mockErr = me.mockEngine.GenerateMock(drinkSchema, "")
+	assert.Nil(t, mockErr)
+	assert.True(t, foundPolymorphicSchema)
+
+}
+
 func TestNewMockEngine_findPath(t *testing.T) {
 	doc := resetGiftshopState()
 	me := NewMockEngine(doc, false, true)
@@ -163,6 +198,7 @@ func TestNewMockEngine_findPathNegative(t *testing.T) {
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/wiretap/giftshop/invalid", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
+	me.GenerateResponse(request)
 
 	path, errors := me.findPath(request)
 	assert.Nil(t, path)
@@ -339,7 +375,8 @@ func TestNewMockEngine_BuildResponse_SimpleValid(t *testing.T) {
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/wiretap/giftshop/products", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -360,7 +397,7 @@ func TestNewMockEngine_BuildResponse_SimpleValid(t *testing.T) {
 //
 //	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/wiretap/giftshop/products", nil)
 //	request.Header.Set(helpers.ContentTypeHeader, "cup/tea")
-//	b, status, err := me.GenerateResponse(request)
+//	b, mockMetadata, err := me.GenerateResponse(request); status := mockMetadata.StatusCode
 //
 //	assert.NoError(t, err)
 //	assert.Equal(t, 415, status)
@@ -379,7 +416,8 @@ func TestNewMockEngine_BuildResponse_SimpleValid_Pretty(t *testing.T) {
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/wiretap/giftshop/products/bd1f3f70-d46f-4ea7-b178-de9a5abfe4d8", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -395,7 +433,8 @@ func TestNewMockEngine_BuildResponse_MissingPath_404(t *testing.T) {
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/minky/monkey/moo", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.Error(t, err)
 	assert.Equal(t, 404, status)
@@ -416,7 +455,8 @@ func TestNewMockEngine_BuildResponse_MissingOperation_404(t *testing.T) {
 	request, _ := http.NewRequest(http.MethodPatch, "https://api.pb33f.io/wiretap/giftshop/products", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.Error(t, err)
 	assert.Equal(t, 404, status)
@@ -441,7 +481,8 @@ func TestNewMockEngine_BuildResponse_CreateProduct_NoSecurity_Invalid(t *testing
 	request, _ := http.NewRequest(http.MethodPost, "https://api.pb33f.io/wiretap/giftshop/products", bytes.NewBuffer(payload))
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.Error(t, err)
 	assert.Equal(t, 401, status)
@@ -468,7 +509,8 @@ func TestNewMockEngine_BuildResponse_CreateProduct_WithSecurity_Invalid(t *testi
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 	request.Header.Set("X-API-Key", "doesnotmatter")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.Error(t, err)
 	assert.Equal(t, 422, status)
@@ -488,7 +530,8 @@ func TestNewMockEngine_BuildResponse_Petstore_Sexurirt(t *testing.T) {
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/minky/monkey/moo", nil)
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.Error(t, err)
 	assert.Equal(t, 404, status)
@@ -633,7 +676,8 @@ components:
 	request.Header.Set(helpers.ContentTypeHeader, "application/json")
 	request.Header.Set(helpers.AuthorizationHeader, "the science man")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
 	assert.Equal(t, `{"type":"https://pb33f.io/wiretap/errors#empty","title":"Response is empty (200)","status":200,"detail":"Nothing was generated for the request '/auth' with the method 'POST'. Response is empty"}`, string(b))
@@ -771,7 +815,8 @@ components:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -827,7 +872,8 @@ components:
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set(helpers.Preferred, "robocop")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -876,7 +922,8 @@ components:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -928,7 +975,8 @@ components:
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set(helpers.Preferred, "1")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -974,7 +1022,8 @@ components:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1018,7 +1067,8 @@ components:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1096,7 +1146,8 @@ components:
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set(helpers.Preferred, "sadcop")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 400, status)
@@ -1188,7 +1239,8 @@ components:
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set(helpers.Preferred, "robocop")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 202, status)
@@ -1204,7 +1256,8 @@ components:
 	request.Header.Set(helpers.Preferred, "robocopInHtml")
 	request.Header.Set("Content-Type", "text/html")
 
-	b, status, err = me.GenerateResponse(request)
+	b, mockMetadata, err = me.GenerateResponse(request)
+	status = mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1214,7 +1267,8 @@ components:
 	request, _ = http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set("Accept", "text/html")
 
-	b, status, err = me.GenerateResponse(request)
+	b, mockMetadata, err = me.GenerateResponse(request)
+	status = mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1264,7 +1318,8 @@ paths:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/chip-shop", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1323,7 +1378,8 @@ paths:
 
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/chip-shop", nil)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 200, status)
@@ -1372,7 +1428,8 @@ components:
 	request, _ := http.NewRequest(http.MethodGet, "https://api.pb33f.io/test", nil)
 	request.Header.Set("wiretap-status-code", "418")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 
 	assert.NoError(t, err)
 	assert.Equal(t, 418, status)
@@ -1422,7 +1479,8 @@ paths:
 
 	request.Header.Set("Content-Type", "application/json")
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusNoContent, status)
@@ -1489,7 +1547,8 @@ components:
 	request, err := http.NewRequest(http.MethodGet, "https://api.pb33f.io/examples", http.NoBody)
 	require.NoError(t, err)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, status)
@@ -1555,7 +1614,8 @@ components:
 	request, err := http.NewRequest(http.MethodGet, "https://api.pb33f.io/examples", http.NoBody)
 	require.NoError(t, err)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, status)
@@ -1621,7 +1681,8 @@ components:
 	request, err := http.NewRequest(http.MethodGet, "https://api.pb33f.io/examples", http.NoBody)
 	require.NoError(t, err)
 
-	b, status, err := me.GenerateResponse(request)
+	b, mockMetadata, err := me.GenerateResponse(request)
+	status := mockMetadata.StatusCode
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, status)

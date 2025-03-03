@@ -48,26 +48,44 @@ func NewMockEngine(document *v3.Document, pretty, useAllPropertyExamples bool) *
 	}
 }
 
-func (rme *ResponseMockEngine) GenerateResponse(request *http.Request) ([]byte, int, error) {
+type MockMetadata struct {
+	StatusCode int
+	Headers    map[string]string
+}
+
+func (rme *ResponseMockEngine) getWiretapTrafficControl(request *http.Request) string {
+	return request.Header.Get("Wiretap-Traffic-Control")
+}
+
+func (rme *ResponseMockEngine) isWiretapTrafficControlSetToASchema(tc string) bool {
+	// tc should never be set to proxy here, but let's check for it anyway
+	if len(tc) > 0 && tc != "proxy" {
+		return true
+	}
+
+	return false
+}
+
+func (rme *ResponseMockEngine) GenerateResponse(request *http.Request) ([]byte, *MockMetadata, error) {
 	return rme.runWorkflow(request)
 }
 
-// https://swagger.io/docs/specification/v3_0/data-models/oneof-anyof-allof-not/
-// anyOf, oneOf, allOf, not
-// only supports v3 model, f the rest LOL
-func (rme *ResponseMockEngine) GetPolymorphicSchema(mediaType *v3.MediaType, preferredRef string) (*base.SchemaProxy, error) {
+// if there is a polymorphic schema, with the name provided, it will return it. If there is none, then it will return the mediaType
+func (rme *ResponseMockEngine) GetPolymorphicSchema(mediaType *v3.MediaType, preferredRef string) (*base.Schema, bool, error) {
 	schema, err := mediaType.Schema.BuildSchema()
 
-	fmt.Println(err)
+	if err != nil {
+		return nil, false, err
+	}
 
 	// only handle oneOf now
-	for _, allProperties := range schema.OneOf {
-		if strings.Contains(allProperties.GetReference(), preferredRef) {
-			return allProperties, nil
+	for _, oneOfSchema := range schema.OneOf {
+		if oneOfSchema.GetReference() == preferredRef {
+			return oneOfSchema.Schema(), true, nil
 		}
 	}
 
-	return nil, fmt.Errorf("could not find polymorphic")
+	return mediaType.Schema.Schema(), false, nil
 }
 
 func (rme *ResponseMockEngine) ValidateSecurity(request *http.Request, operation *v3.Operation) error {
@@ -261,8 +279,16 @@ func (rme *ResponseMockEngine) extractPreferred(request *http.Request) string {
 	return request.Header.Get(helpers.Preferred)
 }
 
-func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, error) {
+func NewMockMetadata(statusCode int, headers map[string]string) *MockMetadata {
+	return &MockMetadata{
+		StatusCode: statusCode,
+		Headers:    headers,
+	}
+}
 
+func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, *MockMetadata, error) {
+	// gather headers for the type of mock response that was created so that we can send to UI
+	mockMetadataHeaders := make(map[string]string)
 	// get path, not valid? return 404
 	path, err := rme.findPath(request)
 
@@ -273,7 +299,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 			fmt.Sprintf("Unable to locate the path '%s' with the method '%s'. %s",
 				request.URL.Path, request.Method, err.Error()),
 			"not_found",
-		), 404, err
+		), NewMockMetadata(404, mockMetadataHeaders), err
 
 	}
 
@@ -285,6 +311,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 	if err != nil {
 		mt, _ := rme.findBestMediaTypeMatch(operation, request, []string{"401"})
 		if mt != nil {
+
 			mock, mockErr := rme.mockEngine.GenerateMock(mt, rme.extractPreferred(request))
 			if mockErr != nil {
 				return rme.buildError(
@@ -293,9 +320,9 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 					fmt.Sprintf("Errors occurred while generating an error 401 mock response: %s",
 						errors.Join(err, mockErr)),
 					"build_mock_error",
-				), 500, mockErr
+				), NewMockMetadata(404, mockMetadataHeaders), mockErr
 			}
-			return mock, 401, err
+			return mock, NewMockMetadata(404, mockMetadataHeaders), err
 		} else {
 			return rme.buildError(
 				401,
@@ -303,7 +330,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 				fmt.Sprintf("Unable to call '%s' on '%s', you are not authorized to access this resource",
 					request.Method, request.URL.Path),
 				"build_mock_error",
-			), 401, err
+			), NewMockMetadata(404, mockMetadataHeaders), err
 		}
 	}
 
@@ -320,7 +347,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 					"'422' or '400' response for this operation. Check payload for validation errors.",
 				"validation_failed_and_spec_insufficient_error",
 				validationErrors,
-			), 500, rme.packErrors(validationErrors)
+			), NewMockMetadata(500, mockMetadataHeaders), rme.packErrors(validationErrors)
 		}
 		return rme.buildErrorWithPayload(
 			422,
@@ -328,7 +355,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 			"The request failed validation, Check payload for validation errors.",
 			"validation_failed_error",
 			validationErrors,
-		), 422, rme.packErrors(validationErrors)
+		), NewMockMetadata(500, mockMetadataHeaders), rme.packErrors(validationErrors)
 
 	}
 
@@ -353,7 +380,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 
 	c, _ := strconv.Atoi(lo)
 	if c == http.StatusNoContent {
-		return nil, c, nil
+		return nil, NewMockMetadata(c, mockMetadataHeaders), nil
 	}
 
 	if mt == nil && noMT {
@@ -363,10 +390,22 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 			"Media type not supported",
 			fmt.Sprintf("The media type requested '%s' is not supported by this operation", mtString),
 			"build_mock_error",
-		), 415, nil
+		), NewMockMetadata(415, mockMetadataHeaders), nil
 	}
 
-	mock, mockErr := rme.mockEngine.GenerateMock(mt, preferred)
+	// only get PolymorphicSchema -> if request valid & the request complies with security
+	wiretapTrafficControl := rme.getWiretapTrafficControl(request)
+	schema, foundPolymorphicSchema, err := rme.GetPolymorphicSchema(mt, wiretapTrafficControl)
+	if err != nil {
+		return rme.buildError(
+			422,
+			"Media type is not properly formed",
+			fmt.Sprintf("Errors occured while forming the media type schema"),
+			"build_mock_error",
+		), NewMockMetadata(422, mockMetadataHeaders), err
+	}
+
+	mock, mockErr := rme.mockEngine.GenerateMock(schema, preferred)
 	if mockErr != nil {
 		return rme.buildError(
 			422,
@@ -374,7 +413,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 			fmt.Sprintf("Errors occurred while generating an error 422 mock response: %s",
 				errors.Join(err, mockErr)),
 			"build_mock_error",
-		), 422, mockErr
+		), NewMockMetadata(422, mockMetadataHeaders), mockErr
 	}
 
 	if len(mock) == 0 {
@@ -384,7 +423,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 			fmt.Sprintf("Nothing was generated for the request '%s' with the method '%s'. Response is empty",
 				request.URL.Path, request.Method),
 			"empty",
-		), 200, err
+		), NewMockMetadata(200, mockMetadataHeaders), err
 	}
 
 	// check for wiretap-status-code in header and override the code, regardless of what was found in the spec.
@@ -392,7 +431,13 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, int, 
 		c, _ = strconv.Atoi(statusCode)
 	}
 
-	return mock, c, nil
+	if foundPolymorphicSchema && rme.isWiretapTrafficControlSetToASchema(wiretapTrafficControl) {
+		mockMetadataHeaders["Wiretap-Traffic-Control"] = fmt.Sprintf("Requested schema %s found", wiretapTrafficControl)
+	} else {
+		mockMetadataHeaders["Wiretap-Traffic-Control"] = fmt.Sprintf("Schema %s was not found, instead the first schema listed in your spec is returned", wiretapTrafficControl)
+	}
+
+	return mock, NewMockMetadata(c, mockMetadataHeaders), nil
 }
 
 func (rme *ResponseMockEngine) findMediaTypeContainingNamedExample(
