@@ -591,6 +591,22 @@ var (
 
 			if doc != nil {
 				pterm.Info.Printf("OpenAPI Specification: '%s' parsed and read\n", config.Contract)
+
+				// todo: refactor
+				// fill up traffic control with all paths
+				tcps := []*shared.TrafficControlPath{}
+				for path := docModel.Model.Paths.PathItems.First(); path != nil; path = path.Next() {
+					tcps = append(tcps, &shared.TrafficControlPath{
+						Path:                 path,
+						MockType:             "",
+						ExamplePreference:    "",
+						MockMode:             false,
+						Variables:            []*shared.TrafficControlVariable{},
+						RequestBodyVariables: []*shared.TrafficControlVariable{},
+					})
+				}
+
+				config.TrafficControlRoutesOverride = tcps
 			}
 
 			if !config.HARValidate {

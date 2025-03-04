@@ -18,7 +18,11 @@ import (
 	"github.com/pb33f/wiretap/report"
 	"github.com/pb33f/wiretap/shared"
 	"github.com/pb33f/wiretap/specs"
+<<<<<<< HEAD
 	staticMock "github.com/pb33f/wiretap/static-mock"
+=======
+	trafficControl "github.com/pb33f/wiretap/traffic-control"
+>>>>>>> 393b882 (done)
 )
 
 func runWiretapService(wiretapConfig *shared.WiretapConfiguration, doc libopenapi.Document) (server.PlatformServer, error) {
@@ -29,6 +33,10 @@ func runWiretapService(wiretapConfig *shared.WiretapConfiguration, doc libopenap
 	storeManager := bus.GetBus().GetStoreManager()
 	controlsStore := storeManager.CreateStoreWithType(controls.ControlServiceChan, reflect.TypeOf(wiretapConfig))
 	controlsStore.Put(shared.ConfigKey, wiretapConfig, nil)
+
+	// create a store and put the wiretapConfig in it.
+	trafficControlsStore := storeManager.CreateStoreWithType(trafficControl.TrafficControlServiceChan, reflect.TypeOf(wiretapConfig))
+	trafficControlsStore.Put(shared.ConfigKey, wiretapConfig, nil)
 
 	harStore := storeManager.CreateStoreWithType(har.HARServiceChan, reflect.TypeOf(wiretapConfig.HARFile))
 	harStore.Put(shared.HARKey, wiretapConfig.HARFile, nil)
@@ -84,6 +92,12 @@ func runWiretapService(wiretapConfig *shared.WiretapConfiguration, doc libopenap
 	// register spec service
 	if err = platformServer.RegisterService(
 		specs.NewSpecService(doc), specs.SpecServiceChan); err != nil {
+		panic(err)
+	}
+
+	// register traffic control service
+	if err = platformServer.RegisterService(
+		trafficControl.NewTrafficControlService(doc), trafficControl.TrafficControlServiceChan); err != nil {
 		panic(err)
 	}
 

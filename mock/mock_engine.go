@@ -54,7 +54,7 @@ type MockMetadata struct {
 }
 
 func (rme *ResponseMockEngine) getWiretapTrafficControl(request *http.Request) string {
-	return request.Header.Get("Wiretap-Traffic-Control")
+	return request.Header.Get(shared.WiretapTrafficControlHeader)
 }
 
 func (rme *ResponseMockEngine) isWiretapTrafficControlSetToASchema(tc string) bool {

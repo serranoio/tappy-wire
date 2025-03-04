@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"regexp"
 
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
 	"gopkg.in/yaml.v3"
 
@@ -61,7 +62,7 @@ type WiretapConfiguration struct {
 	ValidationAllowList          []string                                    `json:"validationAllowList,omitempty" yaml:"validationAllowList,omitempty"`
 	StrictRedirectLocation       bool                                        `json:"strictRedirectLocation,omitempty" yaml:"strictRedirectLocation,omitempty"`
 	IgnorePathRewrite            []*IgnoreRewriteConfig                      `json:"ignorePathRewrite,omitempty" yaml:"ignorePathRewrite,omitempty"`
-	TrafficControlRoutesOverride map[string]string                           `json:"-" yaml:"-"`
+	TrafficControlRoutesOverride []*TrafficControlPath                       `json:"-" yaml:"-"`
 	HARFile                      *harhar.HAR                                 `json:"-" yaml:"-"`
 	CompiledMockModeList         []glob.Glob                                 `json:"-" yaml:"-"`
 	CompiledPathDelays           map[string]*CompiledPathDelay               `json:"-" yaml:"-"`
@@ -323,6 +324,48 @@ func (wpc *WiretapPathConfig) Compile(key string) *CompiledPath {
 	return cp
 }
 
+type TrafficControlVariable struct {
+	Name  string      `json:"name,omitempty"`
+	Value interface{} `json:"value,omitempty"`
+	Id    string      `json:"id,omitempty"`
+}
+
+type TrafficControlPath struct {
+	Path                 orderedmap.Pair[string, *v3.PathItem]
+	MockType             string
+	ExamplePreference    string
+	MockMode             bool                      `json:"mock_type,omitempty"`
+	Variables            []*TrafficControlVariable `json:"variables,omitempty"`
+	RequestBodyVariables []*TrafficControlVariable `json:"request_body_variables,omitempty"`
+}
+
+func (t *TrafficControlPath) MarshalJSON() ([]byte, error) {
+	type Alias TrafficControlPath
+
+	// Create a new struct with the desired fields.
+	aux := &struct {
+		Path                 string                    `json:"path_name"`
+		MockType             string                    `json:"mock_type"`
+		ExamplePreference    string                    `json:"example_preference"`
+		MockMode             bool                      `json:"mock_mode"`
+		Variables            []*TrafficControlVariable `json:"variables"`
+		RequestBodyVariables []*TrafficControlVariable `json:"request_body_variables"`
+		*Alias
+	}{
+		Path:                 t.Path.Key(),
+		MockType:             t.MockType,
+		ExamplePreference:    t.ExamplePreference,
+		MockMode:             t.MockMode,
+		Variables:            t.Variables,
+		RequestBodyVariables: t.RequestBodyVariables,
+		Alias:                (*Alias)(t),
+	}
+
+	// Marshal the auxiliary struct to JSON.
+	return json.Marshal(aux)
+
+}
+
 const ConfigKey = "config"
 const HARKey = "har"
 const WiretapHostPlaceholder = "%WIRETAP_HOST%"
@@ -332,3 +375,5 @@ const WiretapVersionPlaceholder = "%WIRETAP_VERSION%"
 const IndexFile = "index.html"
 const UILocation = "ui/dist"
 const UIAssetsLocation = "ui/dist/assets"
+
+const WiretapTrafficControlHeader = "Wiretap-Traffic-Control"
