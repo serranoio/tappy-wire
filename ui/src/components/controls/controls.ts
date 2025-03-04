@@ -1,5 +1,5 @@
 import { customElement, query, state } from "lit/decorators.js";
-import { html, LitElement, TemplateResult } from "lit";
+import { html, LitElement, PropertyValueMap, TemplateResult } from "lit";
 import {
   ControlsResponse,
   ReportResponse,
@@ -224,6 +224,12 @@ export class WiretapControlsComponent extends LitElement {
     );
   }
 
+  protected firstUpdated(
+    _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>
+  ): void {
+    this.trafficControlDrawer.show();
+  }
+
   render() {
     let filtersBadge: TemplateResult;
     if (this.numFilters > 0) {
@@ -238,21 +244,22 @@ export class WiretapControlsComponent extends LitElement {
         name="stoplights"
         label="traffic-control"
       >
-        <sl-drawer
-          label="wiretap filters"
-          class="drawer-focus"
-          id="traffic-control-drawer"
-        >
-          hello, fun drawer
-          <sl-button
-            @click=${this.closeControls}
-            slot="footer"
-            variant="primary"
-            outline
-            >Close</sl-button
-          >
-        </sl-drawer>
       </sl-icon-button>
+      <sl-drawer
+        label="traffic control"
+        class="drawer-focus"
+        id="traffic-control-drawer"
+        style="--size: 80vw;"
+      >
+        <traffic-control></traffic-control>
+        <sl-button
+          @click=${this.closeControls}
+          slot="footer"
+          variant="primary"
+          outline
+          >Close</sl-button
+        >
+      </sl-drawer>
       ${filtersBadge}
       <sl-icon-button @click=${this.openFilters} name="funnel" label="filers">
       </sl-icon-button>

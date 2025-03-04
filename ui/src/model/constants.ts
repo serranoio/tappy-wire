@@ -18,7 +18,6 @@ export const WiretapLinkCacheStore = "http-link-cache-store";
 
 export const WiretapLinkCacheKey = "http-link-cache";
 
-
 export const WiretapFiltersKey = "wiretap-filters";
 
 export const WiretapControlsKey = "wiretap-controls";
@@ -33,6 +32,16 @@ export const WiretapLocalStorage = "wiretap-transactions";
 
 export const NoSpec = "no-spec";
 
-
 export const TopicPrefix = "/topic/";
 export const QueuePrefix = "/queue/";
+
+export const TrafficControlStore = "traffic-control-store";
+export const TrafficControlPaths = "traffic-control-paths";
+export const TrafficControlChannel = "traffic-control";
+export const SetPathToMockModeCommand = "set-path-to-mock-mode";
+export const GetAllPathsCommand = "get-all-paths";
+export const SetPathPolymorphicSchema = "set-path-polymorphic-schema";
+export const SetPathPreferenceExample = "set-path-preference-example";
+export const SetPathVariablesCommand = "set-path-variables-command";
+export const SetPathRQVariablesCommand =
+  "set-path-request-body-variables-command";

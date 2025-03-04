@@ -9,12 +9,152 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pb33f/ranch/model"
 	configModel "github.com/pb33f/wiretap/config"
 	"github.com/pb33f/wiretap/shared"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
+
+// find location of requested variable.
+// get the first part of the string and second part
+
+// sluggedPath =
+func injectParamsIntoVariable(request *http.Request, sluggedPath string, variable *shared.TrafficControlVariable) error {
+	money := regexp.MustCompile(`\$\{.*\}`)
+	noMoney := regexp.MustCompile(`\{[^}]*\}`)
+	allNumbers := regexp.MustCompile(`\d+`)
+
+	// if the value is only a string, so it is what ${0}
+	// v ${}
+	if str, ok := variable.Value.(string); ok {
+
+		s := money.FindString(str)
+		// match found
+		if len(s) > 0 {
+			// getting location
+			num, err := strconv.Atoi(allNumbers.FindString(s))
+			if err != nil {
+				return fmt.Errorf("please do not put strings in the array")
+			}
+
+			// getting all variables in the string
+			// [{var}, {var2}]
+			allSlugs := noMoney.FindAllString(sluggedPath, -1)
+			for _, slug := range allSlugs {
+				sluggedPath = strings.Replace(sluggedPath, slug, `(.*)`, 1)
+			}
+
+			pathInRegex := regexp.MustCompile(sluggedPath)
+
+			allMatches := pathInRegex.FindStringSubmatch(request.URL.Path)
+
+			variable.Value = allMatches[num+1]
+		}
+	}
+
+	return nil
+}
+
+// can only inject . into variable
+func injectMockValueIntoVariable(variable *shared.TrafficControlVariable, mockBytes []byte) error {
+	// Declare a variable of type interface{}
+	if v, ok := variable.Value.(string); ok {
+
+		if len(variable.Name) > 0 && v[0] == '.' {
+			result := gjson.Get(string(mockBytes), v[1:])
+
+			if result.Exists() {
+				variable.Value = result.Raw
+				return nil
+			}
+			return fmt.Errorf("failed to inject mock variable")
+
+		}
+	}
+
+	return nil
+}
+
+// change mock value from variable
+func injectVariableValueIntoMock(variable *shared.TrafficControlVariable, mockBytes []byte) ([]byte, error) {
+	if len(variable.Name) > 0 && variable.Name[0] != '.' {
+		return nil, fmt.Errorf("did not provide a mockable field")
+	}
+
+	value, err := sjson.Set(string(mockBytes), variable.Name[1:], variable.Value)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(value), nil
+}
+
+func mapVariablesIntoRBVariables(variable *shared.TrafficControlVariable, path *shared.TrafficControlPath) {
+	for _, rbVariable := range path.RequestBodyVariables {
+		// now we don't support strings, only variables
+		if rbVariable.Value == variable.Name {
+			rbVariable.Value = variable.Value
+		}
+	}
+
+}
+
+func injectAndSetMockVariables(request *http.Request, config *shared.WiretapConfiguration, mockBytes []byte) ([]byte, []error) {
+	// we need to update the config, eventually, lol
+	var errs []error
+
+	// inject all variables
+	for _, path := range config.TrafficControlRoutesOverride {
+		for _, variable := range path.Variables {
+			err := injectParamsIntoVariable(request, path.Path.Key(), variable)
+			errs = append(errs, err)
+			err = nil
+			err = injectMockValueIntoVariable(variable, mockBytes)
+			errs = append(errs, err)
+			err = nil
+		}
+	}
+
+	// map all variables first to every rbVariable
+
+	// first, let's get all variables
+	allVariables := []*shared.TrafficControlVariable{}
+	for _, path := range config.TrafficControlRoutesOverride {
+		for _, variable := range path.Variables {
+			allVariables = append(allVariables, variable)
+		}
+	}
+
+	// then we can map them into all rbVariables (preferrably change this to just this path)
+	for _, path := range config.TrafficControlRoutesOverride {
+		for _, variable := range allVariables {
+			mapVariablesIntoRBVariables(variable, path)
+		}
+	}
+
+	// end
+
+	// inject variables into mock
+	for _, path := range config.TrafficControlRoutesOverride {
+		for _, variable := range path.RequestBodyVariables {
+			newMockBytes, err := injectVariableValueIntoMock(variable, mockBytes)
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				mockBytes = newMockBytes
+			}
+		}
+	}
+
+	return mockBytes, nil
+}
 
 func (ws *WiretapService) handleMockRequest(
 	request *model.Request, config *shared.WiretapConfiguration, newReq *http.Request) {
@@ -31,6 +171,9 @@ func (ws *WiretapService) handleMockRequest(
 
 	// build a mock based on the request.
 	mock, mockMetadata, mockErr := ws.mockEngine.GenerateResponse(request.HttpRequest)
+
+	newMock, _ := injectAndSetMockVariables(request.HttpRequest, config, mock)
+	mock = newMock
 
 	// validate http request.
 	ws.ValidateRequest(request, newReq)
