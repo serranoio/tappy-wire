@@ -71,21 +71,25 @@ func (rme *ResponseMockEngine) GenerateResponse(request *http.Request) ([]byte, 
 }
 
 // if there is a polymorphic schema, with the name provided, it will return it. If there is none, then it will return the mediaType
-func (rme *ResponseMockEngine) GetPolymorphicSchema(mediaType *v3.MediaType, preferredRef string) (*base.Schema, bool, error) {
+func (rme *ResponseMockEngine) GetPolymorphicSchema(mediaType *v3.MediaType, preferredRef string) (*v3.MediaType, *base.Schema, bool, error) {
+	// if !mediaType {
+	// 	return nil, false, nil
+	// }
+
 	schema, err := mediaType.Schema.BuildSchema()
 
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
 
 	// only handle oneOf now
 	for _, oneOfSchema := range schema.OneOf {
 		if oneOfSchema.GetReference() == preferredRef {
-			return oneOfSchema.Schema(), true, nil
+			return nil, oneOfSchema.Schema(), true, nil
 		}
 	}
 
-	return mediaType.Schema.Schema(), false, nil
+	return mediaType, nil, false, nil
 }
 
 func (rme *ResponseMockEngine) ValidateSecurity(request *http.Request, operation *v3.Operation) error {
@@ -320,9 +324,9 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, *Mock
 					fmt.Sprintf("Errors occurred while generating an error 401 mock response: %s",
 						errors.Join(err, mockErr)),
 					"build_mock_error",
-				), NewMockMetadata(404, mockMetadataHeaders), mockErr
+				), NewMockMetadata(500, mockMetadataHeaders), mockErr
 			}
-			return mock, NewMockMetadata(404, mockMetadataHeaders), err
+			return mock, NewMockMetadata(401, mockMetadataHeaders), err
 		} else {
 			return rme.buildError(
 				401,
@@ -330,7 +334,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, *Mock
 				fmt.Sprintf("Unable to call '%s' on '%s', you are not authorized to access this resource",
 					request.Method, request.URL.Path),
 				"build_mock_error",
-			), NewMockMetadata(404, mockMetadataHeaders), err
+			), NewMockMetadata(401, mockMetadataHeaders), err
 		}
 	}
 
@@ -355,7 +359,7 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, *Mock
 			"The request failed validation, Check payload for validation errors.",
 			"validation_failed_error",
 			validationErrors,
-		), NewMockMetadata(500, mockMetadataHeaders), rme.packErrors(validationErrors)
+		), NewMockMetadata(422, mockMetadataHeaders), rme.packErrors(validationErrors)
 
 	}
 
@@ -393,19 +397,36 @@ func (rme *ResponseMockEngine) runWorkflow(request *http.Request) ([]byte, *Mock
 		), NewMockMetadata(415, mockMetadataHeaders), nil
 	}
 
-	// only get PolymorphicSchema -> if request valid & the request complies with security
-	wiretapTrafficControl := rme.getWiretapTrafficControl(request)
-	schema, foundPolymorphicSchema, err := rme.GetPolymorphicSchema(mt, wiretapTrafficControl)
-	if err != nil {
-		return rme.buildError(
-			422,
-			"Media type is not properly formed",
-			fmt.Sprintf("Errors occured while forming the media type schema"),
-			"build_mock_error",
-		), NewMockMetadata(422, mockMetadataHeaders), err
+	var schema *base.Schema
+	var foundPolymorphicSchema bool
+	var wiretapTrafficControl string
+	if mt != nil {
+		// if there is a mediaType
+		wiretapTrafficControl := rme.getWiretapTrafficControl(request)
+		mt, schema, foundPolymorphicSchema, err = rme.GetPolymorphicSchema(mt, wiretapTrafficControl)
+
+		if err != nil {
+			return rme.buildError(
+				422,
+				"Media type is not properly formed",
+				fmt.Sprintf("Errors occured while forming the media type schema"),
+				"build_mock_error",
+			), NewMockMetadata(422, mockMetadataHeaders), err
+		}
+
+		// if there is a schema, I want that to be used, if there is not a schema, don't use it
+
 	}
 
-	mock, mockErr := rme.mockEngine.GenerateMock(schema, preferred)
+	var mock []byte
+	var mockErr error
+
+	if schema != nil {
+		mock, mockErr = rme.mockEngine.GenerateMock(schema, preferred)
+	} else {
+		mock, mockErr = rme.mockEngine.GenerateMock(mt, preferred)
+	}
+
 	if mockErr != nil {
 		return rme.buildError(
 			422,

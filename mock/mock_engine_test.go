@@ -168,13 +168,13 @@ func TestMockEngineOneOf(t *testing.T) {
 	mt, _ := me.findBestMediaTypeMatch(operation, request, []string{"200"})
 
 	drink := "#/components/schemas/Mocktail"
-	drinkSchema, foundPolymorphicSchema, _ := me.GetPolymorphicSchema(mt, drink)
+	_, drinkSchema, foundPolymorphicSchema, _ := me.GetPolymorphicSchema(mt, drink)
 	_, mockErr := me.mockEngine.GenerateMock(drinkSchema, "")
 	assert.Nil(t, mockErr)
 	assert.True(t, foundPolymorphicSchema)
 
 	drink = "#/components/schemas/Mojito"
-	drinkSchema, foundPolymorphicSchema, _ = me.GetPolymorphicSchema(mt, drink)
+	_, drinkSchema, foundPolymorphicSchema, _ = me.GetPolymorphicSchema(mt, drink)
 	_, mockErr = me.mockEngine.GenerateMock(drinkSchema, "")
 	assert.Nil(t, mockErr)
 	assert.True(t, foundPolymorphicSchema)
