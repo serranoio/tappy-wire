@@ -14,7 +14,9 @@ func TestConvertPathToGlob(t *testing.T) {
 
 	path := convertPathToGlob("/saloon/{ranger}")
 
-	assert.Equal(t, "/saloon/*", path)
+	assert.True(t, path.Match(`/saloon/asodfijpasdpfoahsefouhjwpfhwpfojh`))
+	assert.True(t, path.Match(`/saloon/ball`))
+	assert.True(t, path.Match(`/saloon/sack`))
 
 }
 

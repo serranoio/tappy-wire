@@ -18,11 +18,8 @@ import (
 	"github.com/pb33f/wiretap/report"
 	"github.com/pb33f/wiretap/shared"
 	"github.com/pb33f/wiretap/specs"
-<<<<<<< HEAD
 	staticMock "github.com/pb33f/wiretap/static-mock"
-=======
 	trafficControl "github.com/pb33f/wiretap/traffic-control"
->>>>>>> 393b882 (done)
 )
 
 func runWiretapService(wiretapConfig *shared.WiretapConfiguration, doc libopenapi.Document) (server.PlatformServer, error) {
