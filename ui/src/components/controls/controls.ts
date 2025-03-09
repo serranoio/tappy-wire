@@ -189,6 +189,7 @@ export class WiretapControlsComponent extends LitElement {
   }
 
   openTrafficControl() {
+    console.log(this.trafficControlDrawer);
     this.trafficControlDrawer.show();
   }
 
@@ -227,7 +228,8 @@ export class WiretapControlsComponent extends LitElement {
   protected firstUpdated(
     _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>
   ): void {
-    this.trafficControlDrawer.show();
+    // this.trafficControlDrawer.show();
+    this.requestUpdate();
   }
 
   render() {
@@ -245,13 +247,15 @@ export class WiretapControlsComponent extends LitElement {
         label="traffic-control"
       >
       </sl-icon-button>
+
       <sl-drawer
         label="traffic control"
         class="drawer-focus"
         id="traffic-control-drawer"
-        style="--size: 80vw;"
+        style="--size: 100vw;"
+        open
       >
-        <traffic-control></traffic-control>
+        <traffic-control .drawer=${this.trafficControlDrawer}></traffic-control>
         <sl-button
           @click=${this.closeControls}
           slot="footer"

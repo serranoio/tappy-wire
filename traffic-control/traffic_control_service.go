@@ -19,12 +19,6 @@ import (
 
 const (
 	TrafficControlServiceChan = "traffic-control"
-	SetPathToMockMode         = "set-path-to-mock-mode"
-	SetPathPolymorphicSchema  = "set-path-polymorphic-schema"
-	SetPathPreferenceExample  = "set-path-preference-example"
-	GetAllPaths               = "get-all-paths"
-	SetPathVariables          = "set-path-variables-command"
-	SetPathRQVariables        = "set-path-request-body-variables-command"
 )
 
 type PathRequest struct {
@@ -58,6 +52,7 @@ type TrafficControlService struct {
 	paths               []*shared.TrafficControlPath
 	trafficControlStore bus.BusStore
 	serviceCore         service.FabricServiceCore
+	mockboard           *shared.Mockboard
 }
 
 func NewTrafficControlService(document libopenapi.Document) *TrafficControlService {
@@ -78,6 +73,13 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	config := controls.(*shared.WiretapConfiguration)
 
 	tcs.paths = config.TrafficControlRoutesOverride
+
+	mockboard, err := setupMockboard()
+	if err != nil {
+		panic(err)
+	}
+
+	tcs.mockboard = mockboard
 
 	return tcs
 }
@@ -114,18 +116,18 @@ func (ss *TrafficControlService) handleSetPathRQVariables(request *model.Request
 
 func (ss *TrafficControlService) HandleServiceRequest(request *model.Request, core service.FabricServiceCore) {
 	switch request.RequestCommand {
-	case SetPathVariables:
-		ss.handleSetPathVariables(request, core)
-	case SetPathRQVariables:
-		ss.handleSetPathRQVariables(request, core)
+	case GetWorkflows:
+		ss.getWorkflows(request, core)
+	case CreateNewWorkflow:
+		ss.createNewWorkflow(request, core)
+	case ChangeWorkflowName:
+		ss.changeWorkflowName(request, core)
+	case UpdateWorkflow:
+		ss.updateWorkflow(request, core)
+	case DeleteWorkflow:
+		ss.deleteWorkflow(request, core)
 	case GetAllPaths:
-		ss.handleGetAllPaths(request, core)
-	case SetPathToMockMode:
-		ss.handleSetPathToMockMode(request, core)
-	case SetPathPolymorphicSchema:
-		ss.handleSetPathPolymorphicSchema(request, core)
-	case SetPathPreferenceExample:
-		ss.handleSetPathPreferenceExample(request, core)
+		ss.getAllPaths(request, core)
 	default:
 		core.HandleUnknownRequest(request)
 	}
@@ -220,4 +222,10 @@ func (ss *TrafficControlService) handleSetPathPreferenceExample(request *model.R
 	}
 
 	ss.updateState(request, ss.paths, core)
+}
+
+// logic
+
+func arazzoTest() {
+
 }

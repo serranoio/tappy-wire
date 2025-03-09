@@ -60,4 +60,20 @@ export default css`
     /* width: 130px; */
     display: inline;
   }
+
+  #traffic-control-drawer::part(base),
+  #traffic-control-drawer::part(panel),
+  #traffic-control-drawer::part(header),
+  #traffic-control-drawer::part(body),
+  #traffic-control-drawer::part(footer) {
+    background-color: transparent;
+  }
+  #traffic-control-drawer::part(base) {
+    backdrop-filter: blur(4px);
+  }
+
+  #traffic-control-drawer::part(header),
+  #traffic-control-drawer::part(footer) {
+    display: none;
+  }
 `;

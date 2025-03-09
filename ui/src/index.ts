@@ -55,6 +55,7 @@ import "./components/controls/controls";
 import "./components/controls/settings.component";
 import "./components/controls/filters.component";
 import "./components/controls/traffic-control.component";
+import "./components/controls/step/step.component";
 
 // models
 import "./model/http_transaction";

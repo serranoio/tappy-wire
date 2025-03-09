@@ -12,6 +12,7 @@ import (
 
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
+	"github.com/speakeasy-api/openapi/arazzo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gobwas/glob"
@@ -62,6 +63,7 @@ type WiretapConfiguration struct {
 	ValidationAllowList          []string                                    `json:"validationAllowList,omitempty" yaml:"validationAllowList,omitempty"`
 	StrictRedirectLocation       bool                                        `json:"strictRedirectLocation,omitempty" yaml:"strictRedirectLocation,omitempty"`
 	IgnorePathRewrite            []*IgnoreRewriteConfig                      `json:"ignorePathRewrite,omitempty" yaml:"ignorePathRewrite,omitempty"`
+	Mockboard                    *Mockboard                                  `json:"mockBoard,omitempty" yaml:"mockBoard,omitempty"`
 	TrafficControlRoutesOverride []*TrafficControlPath                       `json:"-" yaml:"-"`
 	HARFile                      *harhar.HAR                                 `json:"-" yaml:"-"`
 	CompiledMockModeList         []glob.Glob                                 `json:"-" yaml:"-"`
@@ -78,6 +80,7 @@ type WiretapConfiguration struct {
 	CompiledIgnorePathRewrite    []*CompiledIgnoreRewrite                    `json:"-" yaml:"-"`
 	FS                           embed.FS                                    `json:"-"`
 	Logger                       *slog.Logger
+	// Workflow                     []*Workflow `json:"Workflow,omitempty" yaml:"Workflow,omitempty"`
 }
 
 // UnmarshalJSON In order to initialize our ordered maps, we need to create custom un-marshallers.
@@ -364,6 +367,35 @@ func (t *TrafficControlPath) MarshalJSON() ([]byte, error) {
 	// Marshal the auxiliary struct to JSON.
 	return json.Marshal(aux)
 
+}
+
+type Position struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+type StepMetadata struct {
+	OperationID string   `json:"operation_id"`
+	Position    Position `json:"position"`
+}
+
+type WorkflowMetadata struct {
+	StepMetadatas map[string]*StepMetadata `json:"step_metadata"`
+	WorkflowID    string                   `json:"workflow_id"`
+	IsActivated   bool                     `json:"is_activated"`
+}
+
+func NewMockboardMetadata(workflowID string) *WorkflowMetadata {
+	return &WorkflowMetadata{
+		StepMetadatas: make(map[string]*StepMetadata),
+		WorkflowID:    workflowID,
+		IsActivated:   true,
+	}
+}
+
+type Mockboard struct {
+	Arazzo           *arazzo.Arazzo               `json:"arazzo"`
+	WorkflowMetadata map[string]*WorkflowMetadata `json:"workflow_metadata"`
 }
 
 const ConfigKey = "config"

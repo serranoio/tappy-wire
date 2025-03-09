@@ -20,16 +20,12 @@ import * as localforage from "localforage";
 import { HeaderComponent } from "@/components/wiretap-header/header";
 import { WiretapControls, WiretapFilters } from "@/model/controls";
 import {
-  GetAllPathsCommand,
   GetCurrentSpecCommand,
   NoSpec,
   QueuePrefix,
   SpecChannel,
   StartTheHARCommand,
   TopicPrefix,
-  TrafficControlChannel,
-  TrafficControlPaths,
-  TrafficControlStore,
   WiretapChannel,
   WiretapConfigurationChannel,
   WiretapControlsChannel,
@@ -46,7 +42,16 @@ import {
   WiretapSpecStore,
   WiretapStaticChannel,
 } from "@/model/constants";
-import { TrafficControlPath } from "./model/traffic-control";
+import {
+  MockBoard,
+  MockBoardKey,
+  PathsKey,
+  TrafficControlChannel,
+  TrafficControlPath,
+  TrafficControlStore,
+} from "./model/traffic-control";
+import { mock } from "node:test";
+import { PathItem } from "./model/paths";
 
 declare global {
   interface Window {
@@ -60,7 +65,7 @@ export class WiretapComponent extends LitElement {
   private readonly _httpTransactionStore: Bag<HttpTransaction>;
   private readonly _selectedTransactionStore: Bag<HttpTransaction>;
   private readonly _filtersStore: Bag<WiretapFilters>;
-  private readonly _trafficControlStore: Bag<TrafficControlPath[]>;
+  private readonly _trafficControlStore: Bag;
   private readonly _controlsStore: Bag<WiretapControls>;
   private readonly _linkCacheStore: Bag<
     Map<string, Map<string, HttpTransactionBase[]>>
@@ -176,7 +181,7 @@ export class WiretapComponent extends LitElement {
 
     // filters store & subscribe to filter changes.
     this._trafficControlStore =
-      this._storeManager.createBag<TrafficControlPath[]>(TrafficControlStore);
+      this._storeManager.createBag(TrafficControlStore);
 
     // link cache store
     this._linkCacheStore = this._storeManager.createBag<
@@ -346,13 +351,24 @@ export class WiretapComponent extends LitElement {
 
   trafficControlHandler(): BusCallback<CommandResponse> {
     return (msg: CommandResponse) => {
-      const paths = msg.payload?.payload;
-      if (paths != null) {
-        const trafficControlPaths =
-          TrafficControlPath.CreateTrafficControlPaths(paths);
-        localforage.setItem(TrafficControlStore, trafficControlPaths);
-        this._trafficControlStore.set(TrafficControlStore, trafficControlPaths);
-        this.requestUpdate();
+      const payload = msg.payload;
+      if (payload.payload?.arazzo) {
+        // console.log("mockboard request");
+        const mockboard = payload?.payload;
+        if (mockboard != null) {
+          const newMockboard = MockBoard.NewMockBoard(mockboard);
+
+          localforage.setItem(MockBoardKey, newMockboard);
+          this._trafficControlStore.set(MockBoardKey, newMockboard);
+          this.requestUpdate();
+        }
+      } else {
+        // console.log("path items ", payload?.payload);
+        const pathItems = PathItem.NewPathItems(payload?.payload);
+        localforage.setItem(PathsKey, pathItems);
+        this._trafficControlStore.set(PathsKey, pathItems);
+
+        // console.log(pathItems);
       }
     };
   }

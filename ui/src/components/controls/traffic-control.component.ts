@@ -1,23 +1,31 @@
-import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { LitElement, html, PropertyValueMap, TemplateResult } from "lit";
+import { customElement, property, query, state } from "lit/decorators.js";
 import trafficControlCss from "./traffic-control.css";
-import { TrafficControlPath, Variable } from "@/model/traffic-control";
-import { GetBus, RanchUtils } from "@pb33f/ranch";
 import {
-  WiretapControlsStore,
-  WiretapFiltersStore,
-  WiretapControlsChannel,
-  WiretapReportChannel,
-  TrafficControlStore,
-  SetPathToMockModeCommand,
-  SetPathPreferenceExample,
-  SetPathPolymorphicSchema,
-  SetPathVariablesCommand,
-  SetPathRQVariablesCommand,
   GetAllPathsCommand,
-} from "@/model/constants";
+  GetWorkflows,
+  MockBoard,
+  MockBoardKey,
+  PathsKey,
+  StepMetadata,
+  TrafficControlPath,
+  TrafficControlStore,
+  WorkflowMetadata,
+} from "@/model/traffic-control";
+import { GetBus } from "@pb33f/ranch";
+import { WiretapReportChannel } from "@/model/constants";
 import { GetBagManager } from "@pb33f/saddlebag";
 import localforage from "localforage";
+import { SlDrawer, SlMenuItem } from "@shoelace-style/shoelace";
+import { Operation, PathItem } from "@/model/paths";
+import {
+  UpdateStepMetadataEvent,
+  UpdateStepMetadataType,
+  httpMethods,
+  isObjectEmpty,
+  normalizeMap,
+} from "@/model/traffic-control-utils";
+import { styleMap } from "lit/directives/style-map.js";
 
 // fuck it, trafficControl overwrites everything
 // let's fetch wiretap config. From the config, I want to see which paths are in mock mode
@@ -32,22 +40,77 @@ export class TrafficControlComponent extends LitElement {
   static styles = [trafficControlCss];
 
   @state()
-  selectedPath: TrafficControlPath | null = null;
+  mockBoard: MockBoard = new MockBoard();
 
   @state()
-  allPaths: TrafficControlPath[] = [];
+  pathItems: PathItem[] = [];
+
+  @state()
+  selectedWorkflow: WorkflowMetadata | null = null;
 
   @state()
   openNewVarsForm: string = "";
 
+  @state()
+  isWorkflowIslandOpened: boolean = true;
+
+  @property()
+  drawer: SlDrawer;
+
+  @state()
+  isEditingWorkflowName: { id: string; fromIsland: boolean } = {
+    id: "",
+    fromIsland: true,
+  };
+
+  @state()
+  isEditingWorkflowDescription: boolean = false;
+
+  @state()
+  isEditingWorkflowSummary: boolean = false;
+
+  @state()
+  isDeletingWorkflow: boolean = false;
+
+  @state()
+  workflows: WorkflowMetadata[] = [];
+
+  @state()
+  steps: StepMetadata[] = [];
+
+  @state()
   _bus: any;
+  @state()
   _storeManager: any;
+  @state()
   _controlsStore: any;
+  @state()
   _filtersStore: any;
+  @state()
   _wiretapControlsChannel: any;
+  @state()
   _wiretapReportChannel: any;
+  @state()
   _wiretapControlsSubscription: any;
+  @state()
   _wiretapReportSubscription: any;
+
+  @state()
+  eventListeners: [name: string, listener: any];
+
+  populateStateFromMockboard() {
+    this.workflows = normalizeMap(this.mockBoard.workflowMetadatas).map(
+      (value: WorkflowMetadata) => {
+        return value;
+      }
+    );
+
+    if (this.workflows.length > 0) {
+      this.changeSelectedWorkflow(this.workflows[0]);
+    }
+
+    this.requestUpdate();
+  }
 
   constructor() {
     super();
@@ -57,13 +120,40 @@ export class TrafficControlComponent extends LitElement {
     this._wiretapReportChannel = this._bus.getChannel(WiretapReportChannel);
     this._controlsStore = this._storeManager.getBag(TrafficControlStore);
 
-    this._controlsStore.subscribe(TrafficControlStore, (trafficControl) => {
-      this.allPaths = trafficControl;
+    this._controlsStore.subscribe(MockBoardKey, (mb) => {
+      this.mockBoard = mb;
+      this.populateStateFromMockboard();
     });
 
-    this.loadTrafficControlFromStorage().then((paths: TrafficControlPath[]) => {
-      this.allPaths =
-        TrafficControlPath.CreateTrafficControlPathsFromStorage(paths);
+    this._controlsStore.subscribe(PathsKey, (pathItems: PathItem[]) => {
+      this.pathItems = pathItems;
+
+      const stepMetadata = this.mockBoard.addNewStep(
+        this.selectedWorkflow.workflowID,
+        this.pathItems[0],
+        "updatePet",
+        this,
+        this._bus
+      );
+
+      this.steps.push(stepMetadata);
+    });
+
+    this.loadTrafficControlFromStorage().then((mb: MockBoard) => {
+      // this.allPaths =
+      // TrafficControlPath.CreateTrafficControlPathsFromStorage(paths);
+      // console.log("from storage", mb);
+
+      this._bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({ request: GetWorkflows }),
+      });
+
+      // this.populateStateFromMockboard();
+    });
+
+    this.loadPathsFromStorage().then((pathItems: PathItem[]) => {
+      // todo implement creating from storage
 
       this._bus.publish({
         destination: "/pub/queue/traffic-control",
@@ -71,37 +161,67 @@ export class TrafficControlComponent extends LitElement {
       });
     });
 
-    // this._wiretapControlsSubscription = this._wiretapControlsChannel.subscribe(
-    //   this.controlUpdateHandler()
-    // );
-    // this._wiretapReportSubscription = this._wiretapReportChannel.subscribe(
-    //   this.reportHandler()
-    // );
+    document.addEventListener(
+      UpdateStepMetadataEvent,
+      this.listenToStepMetadataChanges.bind(this)
+    );
+  }
+
+  updateEventListeners() {
+    this.eventListeners?.forEach((listener) => {
+      document.removeEventListener(listener.name, listener.listener);
+    });
+
+    const listeners = [];
+
+    listeners.push({
+      name: UpdateStepMetadataEvent,
+      listener: document.addEventListener(
+        UpdateStepMetadataEvent,
+        this.listenToStepMetadataChanges.bind(this)
+      ),
+    });
+
+    return listeners;
+  }
+
+  listenToStepMetadataChanges(e: CustomEvent<UpdateStepMetadataType>) {
+    const type = e.detail;
+
+    this.mockBoard.workflowMetadatas
+      .get(type.workflowID)
+      .updateStepMetadata(type.stepMetadata);
+  }
+
+  changeSelectedWorkflow(workflow: WorkflowMetadata) {
+    this.selectedWorkflow = workflow;
+
+    this.steps = [];
+    // populate steps from workflow
+    this.steps = normalizeMap(workflow?.stepMetadatas).map(
+      (stepMetadata: StepMetadata) => {
+        console.log(stepMetadata);
+        return stepMetadata;
+      }
+    );
+
+    // this.updateEventListeners();
   }
 
   saveData() {
     // update the store
-    this._controlsStore.set(TrafficControlStore, this.allPaths);
-    localforage.setItem<TrafficControlPath[]>(
-      TrafficControlStore,
-      this.allPaths
-    );
+    // this._controlsStore.set(TrafficControlStore, this.allPaths);
+    // localforage.setItem<TrafficControlPath[]>(
+    //   TrafficControlStore,
+    //   this.allPaths
+    // );
+  }
+  async loadTrafficControlFromStorage(): Promise<MockBoard> {
+    return localforage.getItem<MockBoard>(MockBoardKey);
   }
 
-  getPathsInMockMode() {
-    return this.allPaths.filter(
-      (path: TrafficControlPath) => path.isPathInMockMode
-    );
-  }
-
-  getPathsInProxyMode() {
-    return this.allPaths.filter(
-      (path: TrafficControlPath) => !path.isPathInMockMode
-    );
-  }
-
-  async loadTrafficControlFromStorage(): Promise<TrafficControlPath[]> {
-    return localforage.getItem<TrafficControlPath[]>(TrafficControlStore);
+  async loadPathsFromStorage(): Promise<PathItem[]> {
+    return localforage.getItem<PathItem[]>(PathsKey);
   }
 
   controlUpdateHandler(): any {
@@ -111,348 +231,372 @@ export class TrafficControlComponent extends LitElement {
     throw new Error("Method not implemented.");
   }
 
-  renderWordsInTooltip(words: string) {
-    return words.split(" ").map((word: string) => {
-      return html`&nbsp;&nbsp;&nbsp;${word}`;
-    });
-  }
+  renderWorkflowIsland() {
+    const renderName = (key: string) => {
+      if (
+        this.isEditingWorkflowName.id !== key ||
+        this.isEditingWorkflowName.id.length === 0 ||
+        !this.isEditingWorkflowName.fromIsland
+      )
+        return html` <p>${key}</p> `;
 
-  sendVariableUpdate() {
-    if (this._bus.getClient()?.connected) {
-      this._bus.publish({
-        destination: "/pub/queue/traffic-control",
-        body: JSON.stringify({
-          id: RanchUtils.genUUID(),
-          request: SetPathVariablesCommand,
-          payload: JSON.stringify({
-            path_name: this.selectedPath.pathName,
-            variables: this.selectedPath.variables,
-          }),
-        }),
-      });
-    }
-  }
-  sendRBVariableUpdate() {
-    if (this._bus.getClient()?.connected) {
-      this._bus.publish({
-        destination: "/pub/queue/traffic-control",
-        body: JSON.stringify({
-          id: RanchUtils.genUUID(),
-          request: SetPathRQVariablesCommand,
-          payload: JSON.stringify({
-            path_name: this.selectedPath.pathName,
-            variables: this.selectedPath.requestBodyVariables,
-          }),
-        }),
-      });
-    }
-  }
+      return html`
+        <sl-input
+          name="name"
+          size="small"
+          value=${key}
+          @sl-change=${(e) => {
+            this.mockBoard.changeWorkflowName(key, e.target.value, this._bus);
+            this.isEditingWorkflowName.id = "";
+            this.requestUpdate();
+          }}
+        >
+        </sl-input>
+      `;
+    };
 
-  renderSelectedMockModePath() {
-    const availableVariables = html`
-      <div class="available-variables">
-        <label>Available Variables</label>
-        <div>
-          ${TrafficControlPath.MakeAllAvailableVariables(this.allPaths).map(
-            (variable: string) => {
-              return html`<sl-badge>${variable}</sl-badge>`;
-            }
-          )}
-        </div>
-      </div>
-    `;
-    if (!this.selectedPath) {
-      return html`${availableVariables}`;
-    }
+    const renderStatusIndicator = (key: string) => {
+      if (!this.isDeletingWorkflow) {
+        return html`<span
+          class="status-indicator"
+          @click=${(e: any) => {
+            this.mockBoard.workflowMetadatas.get(key).isActivated =
+              !this.mockBoard.workflowMetadatas.get(key).isActivated;
+            this.requestUpdate();
+            e.stopPropagation();
+          }}
+        >
+        </span>`;
+      }
+
+      return html`
+        <sl-icon-button
+          name="x-square"
+          class="delete-workflow-button"
+          @click=${() => {
+            this.mockBoard.deleteWorkflow(key);
+            this.workflows = this.workflows.filter(
+              (workflow: WorkflowMetadata) => workflow.workflowID !== key
+            );
+            this.requestUpdate();
+          }}
+        >
+        </sl-icon-button>
+      `;
+    };
 
     return html`
-      ${availableVariables}
-      <div>
-        <h3>Make changes to ${this.selectedPath.pathName}</h3>
-        <div class="label-div">
-          <label>Set a Preferred Example</label>
-          <sl-input
-            value=${this.selectedPath.examplePreference}
-            @sl-change=${(e) => {
-              const val = e.target.value;
-              this.selectedPath.setExamplePreference(val);
-
-              if (this._bus.getClient()?.connected) {
-                this._bus.publish({
-                  destination: "/pub/queue/traffic-control",
-                  body: JSON.stringify({
-                    id: RanchUtils.genUUID(),
-                    request: SetPathPreferenceExample,
-                    payload: JSON.stringify({
-                      path_name: this.selectedPath.pathName,
-                      mock_mode: this.selectedPath.isPathInMockMode,
-                      example_preference: this.selectedPath.examplePreference,
-                      mock_type: this.selectedPath.mockType,
-                    }),
-                  }),
-                });
-              }
-
-              this.saveData();
-              this.requestUpdate();
-            }}
-            placeholder="Preferred Example"
-          >
-          </sl-input>
-        </div>
-        <div class="label-div">
-          <label>Set a Mock Type</label>
-          <sl-input
-            value=${this.selectedPath.mockType}
-            @sl-change=${(e) => {
-              const val = e.target.value;
-              this.selectedPath.setMockType(val);
-
-              if (this._bus.getClient()?.connected) {
-                this._bus.publish({
-                  destination: "/pub/queue/traffic-control",
-                  body: JSON.stringify({
-                    id: RanchUtils.genUUID(),
-                    request: SetPathPolymorphicSchema,
-                    payload: JSON.stringify({
-                      path_name: this.selectedPath.pathName,
-                      mock_mode: this.selectedPath.isPathInMockMode,
-                      example_preference: this.selectedPath.examplePreference,
-                      mock_type: this.selectedPath.mockType,
-                    }),
-                  }),
-                });
-              }
-
-              this.saveData();
-              this.requestUpdate();
-            }}
-            placeholder="Mock Type"
-          >
-          </sl-input>
-        </div>
-        <div class="mock-variables">
-          <h3>Set Mock varaibles</h3>
-          <div class="set-variables">
-            <label>Set Variables</label>
-            <small
-              >Access the first number in the query params by typing
-              \${0}</small
-            >
-            <div class="all-vars">
-              ${this.selectedPath.variables.map((variable: Variable) => {
-                return html`
-                  <div class="vars">
-                    <sl-icon-button
-                      @click=${() => {
-                        this.selectedPath.removeVariables(variable);
-                        this.sendVariableUpdate();
-                        this.saveData();
-                        this.requestUpdate();
-                      }}
-                      name="x-lg"
-                    >
-                    </sl-icon-button>
-                    <div class="vars-input">
-                      <sl-input
-                        value=${variable.name}
-                        @sl-change=${(e) => {
-                          variable.name = e.target.value;
-                          this.selectedPath.changeVariable(variable);
-                          this.sendVariableUpdate();
-                          this.saveData();
-                          this.requestUpdate();
-                        }}
-                      ></sl-input>
-                      <sl-input
-                        value=${variable.value}
-                        @sl-change=${(e) => {
-                          variable.value = e.target.value;
-                          this.selectedPath.changeVariable(variable);
-                          this.saveData();
-                          this.requestUpdate();
-                          this.sendVariableUpdate();
-                        }}
-                      >
-                      </sl-input>
-                    </div>
-                  </div>
-                `;
-              })}
-            </div>
-          </div>
+      <aside
+        class="workflow-island ${this.isWorkflowIslandOpened ? "" : "closed"}"
+      >
+        <div class="workflow-island-control">
           <sl-icon-button
-            name="plus"
+            class="delete-workflow"
+            name="trash"
             @click=${() => {
-              this.selectedPath.addVariables("", "");
-              this.saveData();
-              this.requestUpdate();
+              this.isDeletingWorkflow = true;
             }}
           ></sl-icon-button>
-          <div class="set-variables">
-            <label>Set Request Body</label>
-            <div class="all-vars">
-              ${this.selectedPath.requestBodyVariables.map(
-                (variable: Variable) => {
-                  return html`
-                    <div class="vars">
-                      <sl-icon-button
-                        @click=${() => {
-                          this.selectedPath.removeRBVariables(variable);
-                          this.sendRBVariableUpdate();
-                          this.saveData();
-                          this.requestUpdate();
-                        }}
-                        name="x-lg"
-                      >
-                      </sl-icon-button>
-                      <div class="vars-input">
-                        <sl-input
-                          value=${variable.name}
-                          @sl-change=${(e) => {
-                            variable.name = e.target.value;
-                            this.selectedPath.changeRBVariable(variable);
-                            this.sendRBVariableUpdate();
-                            this.saveData();
-                            this.requestUpdate();
-                          }}
-                        ></sl-input>
-                        <sl-input
-                          value=${variable.value}
-                          @sl-change=${(e) => {
-                            variable.value = e.target.value;
-                            this.selectedPath.changeRBVariable(variable);
-                            this.saveData();
-                            this.requestUpdate();
-                            this.sendRBVariableUpdate();
-                          }}
-                        >
-                        </sl-input>
-                      </div>
-                    </div>
-                  `;
-                }
-              )}
-            </div>
-          </div>
           <sl-icon-button
+            class="add-new-workflow"
             name="plus"
             @click=${() => {
-              this.selectedPath.addRBVariables("", "");
-              this.saveData();
+              const workflow = this.mockBoard.createNewWorkflow(this._bus);
+              this.workflows.push(workflow);
+              this.changeSelectedWorkflow(workflow);
               this.requestUpdate();
+            }}
+          >
+          </sl-icon-button>
+          <sl-icon-button
+            class="close-workflow-island"
+            name="${this.isWorkflowIslandOpened ? "caret-left" : "caret-right"}"
+            @click=${() => {
+              this.isWorkflowIslandOpened = !this.isWorkflowIslandOpened;
             }}
           ></sl-icon-button>
         </div>
-      </div>
+        <div class="overflow-container">
+          <sl-tooltip content="List of workflows">
+            <h4 class="workflow-island-title island-titles">workflows</h4>
+          </sl-tooltip>
+
+          <ul class="workflow-list">
+            ${this.workflows.map((workflow: WorkflowMetadata) => {
+              const key = workflow.workflowID;
+
+              return html`<li
+                class="workflow-name ${this.selectedWorkflow.workflowID === key
+                  ? "selected-workflow"
+                  : ""}
+                  ${this.mockBoard.workflowMetadatas.get(key).isActivated
+                  ? "activated"
+                  : ""}
+                  
+                  "
+                @click=${() => {
+                  this.changeSelectedWorkflow(workflow);
+                }}
+                @dblclick=${() => {
+                  this.isEditingWorkflowName.id = key;
+                  this.isEditingWorkflowName.fromIsland = true;
+                  this.requestUpdate();
+                }}
+              >
+                ${renderName(key)} ${renderStatusIndicator(key)}
+              </li> `;
+            })}
+          </ul>
+        </div>
+      </aside>
+    `;
+  }
+  protected firstUpdated(
+    _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>
+  ): void {
+    // const workflow = this.mockBoard.createNewWorkflow(this._bus);
+    // this.workflows.push(workflow);
+    // this.selectedWorkflow = workflow;
+    this.requestUpdate();
+  }
+
+  renderProxyMonitorIsland() {
+    return html`
+      <aside class="monitor-island">
+        <sl-tooltip content="400 level failed calls">
+          <h4 class="island-titles monitor-island-title">Proxy Monitor</h4>
+        </sl-tooltip>
+      </aside>
     `;
   }
 
-  renderMockHasPreferencesBadge(path: TrafficControlPath) {
-    if (path.examplePreference.length > 0 || path.mockType.length > 0) {
+  renderPathsIsland() {
+    const renderHttpMethods = (pathItem: PathItem) => {
       return html`
-        <sl-badge class="preferences-badge" variant="primary" pill pulse>
-          <sl-icon name="sliders"></sl-icon>
-        </sl-badge>
+        ${httpMethods.map((method: string) => {
+          if (isObjectEmpty(pathItem[method])) {
+            return html``;
+          }
+          return html`
+            <sl-menu-item value="${method}">
+              <sl-badge size="small" class="${method}-color"
+                >${method}</sl-badge
+              >
+            </sl-menu-item>
+          `;
+        })}
+      `;
+    };
+
+    return html`
+      <aside class="paths-island">
+        <sl-tooltip content="Available paths to mock">
+          <h4 class="island-titles monitor-island-title">select a path</h4>
+        </sl-tooltip>
+        <ul class="path-items-list">
+          ${this.pathItems.map((pathItem: PathItem) => {
+            return html`
+              <li class="path-item">
+                <sl-dropdown>
+                  <p slot="trigger">${pathItem.name}</p>
+                  <sl-menu
+                    @sl-select=${(e: SlMenuItem) => {
+                      const operation = e.detail.item.value;
+
+                      const operationSelected = pathItem[
+                        operation
+                      ] as Operation;
+
+                      const stepMetadata = this.mockBoard.addNewStep(
+                        this.selectedWorkflow.workflowID,
+                        pathItem,
+                        operationSelected.operationId,
+                        this,
+                        this._bus
+                      );
+
+                      this.steps.push(stepMetadata);
+
+                      this.requestUpdate();
+
+                      // we are going to construct the step here and add it to the steps
+                    }}
+                  >
+                    ${renderHttpMethods(pathItem)}
+                  </sl-menu>
+                </sl-dropdown>
+              </li>
+            `;
+          })}
+        </ul>
+        <div class="path-island-control">
+          <sl-icon-button name="plus-lg"> </sl-icon-button>
+        </div>
+      </aside>
+    `;
+  }
+
+  renderVariableBankIsland() {
+    return html`
+      <aside class="variable-bank-island">
+        <sl-tooltip content="All of the variables">
+          <h4 class="island-titles monitor-island-title">Variable Bank</h4>
+        </sl-tooltip>
+      </aside>
+    `;
+  }
+
+  renderMockMonitorIsland() {
+    return html`
+      <aside class="mock-monitor-island">
+        <sl-tooltip content="all mocks">
+          <h4 class="island-titles mock-monitor-island-title">Mock Monitor</h4>
+        </sl-tooltip>
+      </aside>
+    `;
+  }
+
+  renderMockBoardSection() {
+    let workflowName: TemplateResult;
+    if (!this.isEditingWorkflowName.fromIsland) {
+      workflowName = html`
+        <sl-input
+          class="mock-board-name"
+          value=${this.selectedWorkflow.workflowID}
+          @sl-change=${(e) => {
+            this.mockBoard.changeWorkflowName(
+              this.selectedWorkflow.workflowID,
+              e.target.value,
+              this._bus
+            );
+            this.isEditingWorkflowName.id = "";
+            this.isEditingWorkflowName.fromIsland = true;
+            this.requestUpdate();
+          }}
+        >
+        </sl-input>
+      `;
+    } else {
+      workflowName = html`<h2
+        class="mock-board-name"
+        @dblclick=${() => {
+          this.isEditingWorkflowName.id = this.selectedWorkflow.workflowID;
+          this.isEditingWorkflowName.fromIsland = false;
+          this.requestUpdate();
+        }}
+      >
+        ${this.selectedWorkflow?.workflowID}
+      </h2>`;
+    }
+
+    const arazzoWorkflow = this.mockBoard.arazzo.workflows.get(
+      this.selectedWorkflow?.workflowID
+    );
+
+    let workflowSummary: TemplateResult;
+    if (this.isEditingWorkflowSummary) {
+      workflowSummary = html`
+        <sl-input
+          class="workflow-summary-input"
+          size="small"
+          value=${arazzoWorkflow?.summary}
+          @sl-change=${(e) => {
+            this.isEditingWorkflowSummary = false;
+            arazzoWorkflow.summary = e.target.value;
+            this.mockBoard.updateWorkflow(arazzoWorkflow.workflowID, this._bus);
+            this.requestUpdate();
+          }}
+        >
+        </sl-input>
+      `;
+    } else {
+      workflowSummary = html`
+        <p
+          @dblclick=${() => {
+            this.isEditingWorkflowSummary = true;
+          }}
+        >
+          ${arazzoWorkflow?.summary
+            ? arazzoWorkflow.summary
+            : html`<span class="dash">Define objective of workflow</span>`}
+        </p>
       `;
     }
 
-    return "";
+    let workflowDescription: TemplateResult;
+    if (this.isEditingWorkflowDescription) {
+      workflowDescription = html`
+        <sl-input
+          class="workflow-summary-input"
+          size="small"
+          value=${arazzoWorkflow?.description}
+          @sl-change=${(e) => {
+            this.isEditingWorkflowDescription = false;
+            arazzoWorkflow.description = e.target.value;
+            this.mockBoard.updateWorkflow(arazzoWorkflow.workflowID, this._bus);
+            this.requestUpdate();
+          }}
+        >
+        </sl-input>
+      `;
+    } else {
+      workflowDescription = html`
+        <p
+          @dblclick=${() => {
+            this.isEditingWorkflowDescription = true;
+          }}
+        >
+          ${arazzoWorkflow?.description
+            ? arazzoWorkflow.description
+            : html`<span class="dash">Describe the workflow</span>`}
+        </p>
+      `;
+    }
+
+    return html`
+      <div class="mock-board-section">
+        ${workflowName} ${workflowSummary} ${workflowDescription}
+      </div>
+    `;
+  }
+
+  renderSteps() {
+    return html`
+      <div id="step-fence">
+        ${this.steps.map((step: StepMetadata) => {
+          const arazzoStep = this.mockBoard.arazzo.workflows
+            .get(this.selectedWorkflow.workflowID)
+            .steps.get(step.operationID);
+
+          // todo send arazzo in here as well
+          return html`
+            <arazzo-step
+              .stepMetadata=${step}
+              .step=${arazzoStep}
+              .workflowID=${this.selectedWorkflow.workflowID}
+            ></arazzo-step>
+          `;
+        })}
+      </div>
+    `;
   }
 
   render() {
+    this.mockBoard.debug(false, false);
+    console.log(this.mockBoard);
     return html`
-      <p>
-        Traffic control overrides whichever paths that you set to mock mode in
-        your config.
-      </p>
-      <div class="grid">
-        <div>
-          <h3>Mock Mode</h3>
-          ${this.getPathsInMockMode().map((path: TrafficControlPath) => {
-            return html`<div
-              class="col mocked-path ${this.selectedPath?.pathName ===
-              path.pathName
-                ? "selected-path"
-                : ""}"
-              @click=${(e) => {
-                if (!e.target.classList.contains("proxy")) {
-                  this.selectedPath = path;
-                }
-              }}
-            >
-              ${this.renderMockHasPreferencesBadge(path)}
-              <p>${path.pathName}</p>
-              <!-- ${this.renderWordsInTooltip("Move to proxy mode")} -->
-              <sl-icon-button
-                name="arrow-right"
-                class="proxy"
-                @click=${(e) => {
-                  e.preventDefault();
-                  path.toggleMockMode();
-                  this.selectedPath = null;
-                  console.log(this.selectedPath);
-
-                  if (this._bus.getClient()?.connected) {
-                    this._bus.publish({
-                      destination: "/pub/queue/traffic-control",
-                      body: JSON.stringify({
-                        id: RanchUtils.genUUID(),
-                        request: SetPathToMockModeCommand,
-                        payload: JSON.stringify({
-                          path_name: path.pathName,
-                          mock_mode: path.isPathInMockMode,
-                          example_preference: path.examplePreference,
-                          mock_type: path.mockType,
-                        }),
-                      }),
-                    });
-                  }
-
-                  this.requestUpdate();
-                  this.saveData();
-                  e.preventDefault();
-                }}
-              ></sl-icon-button>
-            </div>`;
-          })}
-        </div>
-
-        <div>
-          <h3>Proxy Mode</h3>
-          ${this.getPathsInProxyMode().map((path: TrafficControlPath) => {
-            return html`<div class="col proxied-path">
-              <!-- ${this.renderWordsInTooltip("Move to mock mode")} -->
-              <sl-icon-button
-                name="arrow-left"
-                @click=${() => {
-                  path.toggleMockMode();
-
-                  if (this._bus.getClient()?.connected) {
-                    this._bus.publish({
-                      destination: "/pub/queue/traffic-control",
-                      body: JSON.stringify({
-                        id: RanchUtils.genUUID(),
-                        request: SetPathToMockModeCommand,
-                        payload: JSON.stringify({
-                          path_name: path.pathName,
-                          mock_mode: path.isPathInMockMode,
-                          example_preference: path.examplePreference,
-                          mock_type: path.mockType,
-                        }),
-                      }),
-                    });
-                  }
-                  this.saveData();
-                  this.requestUpdate();
-                }}
-              ></sl-icon-button>
-              <p>${path.pathName}</p>
-            </div>`;
-          })}
-        </div>
-      </div>
-      ${this.renderSelectedMockModePath()}
+      ${this.renderMockBoardSection()} ${this.renderWorkflowIsland()}
+      ${this.renderProxyMonitorIsland()} ${this.renderPathsIsland()}
+      ${this.renderSteps()} ${this.renderVariableBankIsland()}
+      ${this.renderMockMonitorIsland()}
+      <sl-icon-button
+        name="x-lg"
+        class="close-mock-board"
+        @click=${() => {
+          this.drawer.hide();
+        }}
+      >
+      </sl-icon-button>
     `;
   }
 }

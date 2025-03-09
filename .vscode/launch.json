@@ -10,7 +10,7 @@
 			"request": "launch",
 			"mode": "auto",
 			"program": "${workspaceFolder}",
-			"args": ["-s", "../openapi.yaml", "-c", "../config.yaml", "-l"]
+			"args": ["-s", "../petcoupons.yaml", "-c", "../config.yaml", "-l"]
 		}
 	]
 }
