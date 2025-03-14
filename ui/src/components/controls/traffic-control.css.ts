@@ -6,6 +6,9 @@ export default css`
     top: 2%;
     position: absolute;
   }
+  :host {
+    box-shadow: inset 5px 10px green;
+  }
   * {
     margin: 0;
     padding: 0;
@@ -208,16 +211,159 @@ export default css`
     padding-top: 6px;
   }
 
-  .variable-bank-island {
+  .pipe-bank-island {
     position: absolute;
     left: 0%;
     bottom: 0%;
-    height: 5rem;
     background-color: var(--background-color);
-    width: 30rem;
     border-bottom-left-radius: 5px;
     border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
+    /* border-top-right-radius: 5px; */
+    height: 7rem;
+    width: 30rem;
+  }
+
+  .pipe-island-overflow-container {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: absolute;
+    /* transform: translateY(-25%); */
+  }
+
+  .variable-island-control {
+    position: absolute;
+    right: -0.5%;
+    transform: translateX(100%);
+    height: 100%;
+    width: 32px;
+    top: 0;
+    border-top-right-radius: 20px;
+    border-bottom-right-radius: 20px;
+    background-color: var(--background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .flex {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .pipe-bank-property {
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+
+  .pipe-line {
+    position: absolute;
+    z-index: 99;
+    pointer-events: none;
+    stroke-linecap: round;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .pipe-line line:first-child {
+    stroke-width: 7px;
+    stroke: #888;
+  }
+  .pipe-line line:last-child {
+    stroke-width: 3px;
+    stroke: #333;
+    animation: flow 20s linear infinite;
+    stroke-dasharray: 30 30; /* Length of the line, adjust according to your line */
+    stroke-dashoffset: 0; /* Initially hides the stroke */
+  }
+
+  @keyframes flow {
+    0% {
+      stroke-dashoffset: 0;
+    }
+    100% {
+      stroke-dashoffset: 600; /* The "data" is flowing fully through the pipe */
+    }
+  }
+
+  .variable-island-control sl-icon-button::part(base),
+  .variable-island-control sl-icon-button {
+    width: 100%;
+  }
+  .variable-island-control sl-icon-button::part(base) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .pipe-bank-content {
+    overflow-y: scroll;
+    height: 100%;
+    padding: 2px;
+
+    position: absolute;
+    width: 100%;
+    transition: all 0.5s;
+  }
+
+  .pipe {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background-color: green;
+  }
+
+  .show-pipe {
+    display: grid;
+    grid-template-columns: 1fr 0.5fr 1fr;
+    font-size: 2rem;
+    align-items: center;
+    justify-items: center;
+    justify-content: center;
+    align-content: center;
+    height: 100%;
+  }
+
+  .pipe-outputs {
+    font-size: 1rem;
+    overflow-y: scroll;
+    height: 100%;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    direction: rtl;
+  }
+  *::-webkit-scrollbar-track {
+    background-color: var(--invert-font-color);
+  }
+  *::-webkit-scrollbar-thumb {
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+    background: var(--secondary-color-lowalpha);
+  }
+  .pipe-bank-content::-webkit-scrollbar {
+    width: 8px;
+    direction: rtl;
+  }
+
+  .pipe-bank-content::-webkit-scrollbar-track {
+    background-color: var(--invert-font-color);
+  }
+
+  .pipe-bank-content::-webkit-scrollbar-thumb {
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+    background: var(--secondary-color-lowalpha);
+  }
+
+  .selected-variable-title {
+    color: var(--secondary-color) !important;
+    font-style: italic;
+    font-size: 24px;
+    position: absolute;
+    top: 0;
+    transform: translateY(-100%);
+    left: 5px;
+    white-space: nowrap;
   }
 
   .mock-monitor-island {
@@ -282,6 +428,11 @@ export default css`
     justify-content: center;
   }
 
+  .delete-workflow-button::part(base) {
+    font-size: 16px;
+    padding: 0 !important;
+  }
+
   .close-workflow-island {
     background-color: var(--background-color);
     border-bottom-right-radius: 20px;
@@ -341,6 +492,33 @@ export default css`
     padding: 6px 6px 6px 6px;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .content-div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .pipe-bank-content form {
+    display: flex;
+  }
+
+  .pipe-bank-content form sl-icon-button {
+    height: 100%;
+  }
+  .pipe-bank-content form sl-icon-button::part(base) {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .column-flex {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
   }
 
   .workflow-name sl-input {
@@ -441,5 +619,8 @@ export default css`
   .path-island-control sl-icon-button::part(base) {
     width: 100%;
     height: 100%;
+  }
+
+  .pipe-bank-island {
   }
 `;

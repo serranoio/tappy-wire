@@ -335,3 +335,30 @@ func TestInjectVariableValueIntoMock(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, strings.Contains(string(newMock), value))
 }
+
+func TestVariables(t *testing.T) {
+
+	variable := &shared.Variable{
+		ID:        "$updatePetWithForm.query.name",
+		LevelID:   "$findPetsByStatus",
+		IO:        "input",
+		Code:      "200",
+		MediaType: "application/json",
+		Property:  "query.name",
+		ReceiverVariables: []*shared.Variable{
+			&shared.Variable{
+				Code:      "200",
+				ID:        "$findPetsByStatus.items.properties.id",
+				IO:        "output",
+				LevelID:   "findPetsByStatus",
+				MediaType: "application/json",
+				Property:  "items.properties.id",
+			},
+		},
+	}
+
+}
+
+func TestMatchPath() {
+
+}

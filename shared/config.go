@@ -375,22 +375,50 @@ type Position struct {
 }
 
 type StepMetadata struct {
-	OperationID string   `json:"operation_id"`
+	ID          string   `json:"id"`
+	Description string   `json:"description"`
+	StepName    string   `json:"stepName"`
+	OperationID string   `json:"operationID"`
 	Position    Position `json:"position"`
+	PathName    string   `json:"pathName"`
+}
+
+type IO string
+
+const (
+	output IO = "output"
+	input  IO = "input"
+)
+
+type In string
+
+const (
+	QUERY  In = "query"
+	HEADER In = "header"
+	PATH   In = "path"
+	COOKIE In = "cookie"
+)
+
+type Variable struct {
+	LevelID           string      `json:"levelID"`
+	IO                IO          `json:"io"`
+	Code              string      `json:"code"`
+	MediaType         string      `json:"mediaType"`
+	Property          string      `json:"property"`
+	ID                string      `json:"id"`
+	Value             interface{} `json:"value"`
+	In                string      `json:"in"`
+	ReceiverVariables []*Variable `jsons:"receiverVariables"`
 }
 
 type WorkflowMetadata struct {
 	StepMetadatas map[string]*StepMetadata `json:"step_metadata"`
 	WorkflowID    string                   `json:"workflow_id"`
 	IsActivated   bool                     `json:"is_activated"`
-}
-
-func NewMockboardMetadata(workflowID string) *WorkflowMetadata {
-	return &WorkflowMetadata{
-		StepMetadatas: make(map[string]*StepMetadata),
-		WorkflowID:    workflowID,
-		IsActivated:   true,
-	}
+	Variables     map[string]*Variable     `json:"variables"`
+	Summary       string                   `json:"summary"`
+	Description   string                   `json:"description"`
+	WorkflowName  string                   `json:"workflowName"`
 }
 
 type Mockboard struct {

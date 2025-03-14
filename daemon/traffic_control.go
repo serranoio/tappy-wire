@@ -5,6 +5,8 @@ import (
 	"regexp"
 
 	"github.com/gobwas/glob"
+	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/orderedmap"
 	"github.com/pb33f/wiretap/shared"
 )
 
@@ -70,4 +72,66 @@ func directTrafficToMockModeOverride(config *shared.WiretapConfiguration, reques
 	}
 
 	return true
+}
+
+func injectValueIntoVariable(variable *shared.Variable) {
+
+}
+
+func matchRequestedPathAgainstSchema(compiledRequestPath glob.Glob, pathItems *orderedmap.Map[string, *v3.PathItem], variable *shared.Variable) (*v3.Operation, bool) {
+	for pathItem := pathItems.First(); pathItem != nil; pathItem = pathItem.Next() {
+		if compiledRequestPath.Match(pathItem.Key()) {
+			id := variable.LevelID[1:]
+			if id == pathItem.Value().Get.OperationId {
+				return pathItem.Value().Get, true
+
+			} else if id == pathItem.Value().Put.OperationId {
+				return pathItem.Value().Put, true
+
+			} else if id == pathItem.Value().Post.OperationId {
+				return pathItem.Value().Post, true
+
+			} else if id == pathItem.Value().Delete.OperationId {
+				return pathItem.Value().Delete, true
+
+			} else if id == pathItem.Value().Patch.OperationId {
+				return pathItem.Value().Patch, true
+
+			} else if id == pathItem.Value().Options.OperationId {
+				return pathItem.Value().Options, true
+			}
+			// random request now fits this, but is it also
+			// extract the
+		}
+
+	}
+
+	return nil, false
+}
+
+func handleVariables(pathItems *orderedmap.Map[string, *v3.PathItem], request *http.Request, config *shared.WiretapConfiguration) ([]byte, error) {
+	mock := []byte("")
+
+	compiledRequestPath := convertPathToGlob(request.URL.Path)
+
+	mockboard := config.Mockboard
+
+	for _, wfm := range mockboard.WorkflowMetadata {
+		if !wfm.IsActivated {
+			continue
+		}
+		for _, variable := range wfm.Variables {
+			matchRequestedPathAgainstSchema(compiledRequestPath, pathItems, variable)
+
+		}
+		// if a variable has this path levelID,
+
+		// for _, sm := range wfm.StepMetadatas {
+
+		// sm.OperationID
+
+		// }
+	}
+
+	return mock, nil
 }

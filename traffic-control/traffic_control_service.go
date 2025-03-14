@@ -4,10 +4,11 @@
 package trafficControl
 
 import (
-	"encoding/json"
+	"sync"
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	"github.com/pb33f/libopenapi/index"
 	"github.com/pb33f/ranch/bus"
 	"github.com/pb33f/ranch/model"
 	"github.com/pb33f/ranch/service"
@@ -49,10 +50,12 @@ type ControlResponse struct {
 type TrafficControlService struct {
 	document            libopenapi.Document
 	docModel            *v3.Document
-	paths               []*shared.TrafficControlPath
 	trafficControlStore bus.BusStore
 	serviceCore         service.FabricServiceCore
 	mockboard           *shared.Mockboard
+	rolodex             *index.Rolodex
+	resolvedSchemas     map[string]string
+	mutex               *sync.Mutex
 }
 
 func NewTrafficControlService(document libopenapi.Document) *TrafficControlService {
@@ -60,6 +63,8 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	if document == nil {
 		return tcs
 	}
+
+	tcs.mutex = &sync.Mutex{}
 
 	storeManager := bus.GetBus().GetStoreManager()
 	trafficControlStore := storeManager.CreateStore(TrafficControlServiceChan)
@@ -69,10 +74,15 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	tcs.document = document
 	tcs.docModel = &m.Model
 
-	controls := tcs.trafficControlStore.GetValue(shared.ConfigKey)
-	config := controls.(*shared.WiretapConfiguration)
+	indexConfig := index.CreateClosedAPIIndexConfig()
+	// create a new rolodex
+	rolodex := index.NewRolodex(indexConfig)
+	// * the rolodex is so fucking powerful, what the actual fuck
+	rolodex.SetRootNode(tcs.docModel.Index.GetRootNode())
+	rolodex.IndexTheRolodex()
+	tcs.rolodex = rolodex
 
-	tcs.paths = config.TrafficControlRoutesOverride
+	tcs.resolvedSchemas = make(map[string]string)
 
 	mockboard, err := setupMockboard()
 	if err != nil {
@@ -84,44 +94,12 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	return tcs
 }
 
-func (ss *TrafficControlService) handleSetPathVariables(request *model.Request, core service.FabricServiceCore) {
-	rq, _ := request.Payload.(string)
-	var pr VariableRequest
-	_ = json.Unmarshal([]byte(rq), &pr)
-
-	for _, path := range ss.paths {
-		if path.Path.Key() == pr.PathName {
-			path.Variables = pr.Variables
-		}
-	}
-
-	ss.updateState(request, ss.paths, core)
-
-}
-
-func (ss *TrafficControlService) handleSetPathRQVariables(request *model.Request, core service.FabricServiceCore) {
-	rq, _ := request.Payload.(string)
-	var pr VariableRequest
-	_ = json.Unmarshal([]byte(rq), &pr)
-
-	for _, path := range ss.paths {
-		if path.Path.Key() == pr.PathName {
-			path.RequestBodyVariables = pr.Variables
-		}
-	}
-
-	ss.updateState(request, ss.paths, core)
-
-}
-
 func (ss *TrafficControlService) HandleServiceRequest(request *model.Request, core service.FabricServiceCore) {
 	switch request.RequestCommand {
 	case GetWorkflows:
 		ss.getWorkflows(request, core)
 	case CreateNewWorkflow:
 		ss.createNewWorkflow(request, core)
-	case ChangeWorkflowName:
-		ss.changeWorkflowName(request, core)
 	case UpdateWorkflow:
 		ss.updateWorkflow(request, core)
 	case DeleteWorkflow:
@@ -133,99 +111,11 @@ func (ss *TrafficControlService) HandleServiceRequest(request *model.Request, co
 	}
 }
 
-func (ss *TrafficControlService) handleGetAllPaths(request *model.Request, core service.FabricServiceCore) {
-	paths := []*Path{}
-	for _, tcp := range ss.paths {
-		paths = append(paths, &Path{
-			PathName:             tcp.Path.Key(),
-			MockType:             tcp.MockType,
-			ExamplePreference:    tcp.ExamplePreference,
-			MockMode:             tcp.MockMode,
-			Variables:            tcp.Variables,
-			RequestBodyVariables: tcp.RequestBodyVariables,
-		})
-	}
-
-	if ss.document != nil {
-		core.SendResponse(request, paths)
-	} else {
-		core.SendResponse(request, []byte("no-spec"))
-	}
-}
-
-func (ss *TrafficControlService) handleSetPathToMockMode(request *model.Request, core service.FabricServiceCore) {
-
-	rq, _ := request.Payload.(string)
-	var pr PathRequest
-	_ = json.Unmarshal([]byte(rq), &pr)
-
-	for _, path := range ss.paths {
-		if path.Path.Key() == pr.PathName {
-			path.MockMode = pr.MockMode
-		}
-	}
-
-	ss.updateState(request, ss.paths, core)
-
-}
-func (ss *TrafficControlService) handleSetPathPolymorphicSchema(request *model.Request, core service.FabricServiceCore) {
-
-	rq, _ := request.Payload.(string)
-	var pr PathRequest
-	_ = json.Unmarshal([]byte(rq), &pr)
-
-	for _, path := range ss.paths {
-		if path.Path.Key() == pr.PathName {
-			path.MockType = pr.MockType
-		}
-	}
-
-	ss.updateState(request, ss.paths, core)
-}
-
-func (ss *TrafficControlService) updateState(request *model.Request, paths []*shared.TrafficControlPath, core service.FabricServiceCore) {
+func (ss *TrafficControlService) updateState() {
 	// extract state from store.
 	controls := ss.trafficControlStore.GetValue(shared.ConfigKey)
 	config := controls.(*shared.WiretapConfiguration)
 
-	config.TrafficControlRoutesOverride = paths
+	config.Mockboard = ss.mockboard
 	ss.trafficControlStore.Put(shared.ConfigKey, config, nil)
-
-	// core.SendResponse(request, convertTrafficControlPathsToPaths(paths))
-}
-
-func convertTrafficControlPathsToPaths(paths []shared.TrafficControlPath) []*PathRequest {
-	pathResponses := []*PathRequest{}
-
-	for _, path := range paths {
-		pathResponses = append(pathResponses, &PathRequest{
-			PathName:          path.Path.Key(),
-			ExamplePreference: path.ExamplePreference,
-			MockType:          path.MockType,
-			MockMode:          path.MockMode,
-		})
-	}
-
-	return pathResponses
-}
-
-func (ss *TrafficControlService) handleSetPathPreferenceExample(request *model.Request, core service.FabricServiceCore) {
-
-	rq, _ := request.Payload.(string)
-	var pr PathRequest
-	_ = json.Unmarshal([]byte(rq), &pr)
-
-	for _, path := range ss.paths {
-		if path.Path.Key() == pr.PathName {
-			path.ExamplePreference = pr.ExamplePreference
-		}
-	}
-
-	ss.updateState(request, ss.paths, core)
-}
-
-// logic
-
-func arazzoTest() {
-
 }

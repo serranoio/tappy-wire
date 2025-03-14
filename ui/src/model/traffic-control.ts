@@ -1,13 +1,19 @@
 import { Bus, RanchUtils } from "@pb33f/ranch";
-import { Arazzo, Workflow } from "./arazzo";
+import { In, Info } from "./arazzo";
 import {
   normalizeMap,
   deepSnakeToCamel,
   httpMethods,
+  IO,
 } from "./traffic-control-utils";
-import { Operation, PathItem } from "./paths";
+import { MediaType, Operation, PathItem, ResponseCode } from "./paths";
+import { relativeTimeThreshold } from "moment";
+import { html } from "lit";
 
 export class StepMetadata {
+  id: string;
+  description: string;
+  stepName: string;
   operationID: string;
   position: { x: number; y: number };
   operation: Operation;
@@ -19,6 +25,21 @@ export class StepMetadata {
       x: 0,
       y: 0,
     };
+    this.stepName = "";
+    this.id = RanchUtils.genShortId(6);
+  }
+
+  static NewStepMetadata(sm): StepMetadata {
+    const nsm = new StepMetadata(sm.operationid);
+
+    nsm.id = sm.id;
+    nsm.description = sm.description;
+    nsm.stepName = sm.stepname;
+    nsm.pathName = sm.pathname;
+    nsm.position.x = sm.position.x;
+    nsm.position.y = sm.position.y;
+
+    return nsm;
   }
 
   update(stepMetadata: StepMetadata) {
@@ -40,6 +61,11 @@ export class StepMetadata {
 
     return this;
   }
+  setPositionByCoords(position: { x: number; y: number }): StepMetadata {
+    this.position = position;
+
+    return this;
+  }
 
   setPathName(pathName: string): StepMetadata {
     this.pathName = pathName;
@@ -57,18 +83,25 @@ export class StepMetadata {
     return this;
   }
 
+  doesStepContainAnchors(pipe: Pipe): Anchor[] {
+    const anchors = [pipe.input, ...pipe.outputs].filter((a: Anchor) => {
+      return a.stepID === this.id;
+    });
+
+    return anchors;
+  }
+
   normalize() {
     return {
+      id: this.id,
+      description: this.description,
+      stepName: this.stepName,
       operationID: this.operationID,
       position: this.position,
+      pathName: this.pathName,
     };
   }
 
-  static NewStepMetadata(stepMetadata): StepMetadata {
-    const sm = new StepMetadata(stepMetadata.operationId);
-    sm.position = stepMetadata.position;
-    return sm;
-  }
   // all other UI state goes here, like positioning of yadayada, if something is opened or not
 }
 
@@ -76,10 +109,16 @@ export class WorkflowMetadata {
   stepMetadatas: Map<string, StepMetadata>;
   workflowID: string;
   isActivated: boolean;
-  constructor(id: string) {
-    this.workflowID = id;
+  pipes: Map<string, Pipe>;
+  summary: string;
+  description: string;
+  workflowName: string;
+  constructor() {
+    this.workflowID = RanchUtils.genShortId(6);
     this.isActivated = true;
     this.stepMetadatas = new Map();
+    this.pipes = new Map();
+    this.workflowName = "";
   }
 
   debug() {
@@ -95,30 +134,43 @@ export class WorkflowMetadata {
   addStepMetadata(operationID: string, parent: Element): StepMetadata {
     const stepMetadata = new StepMetadata(operationID).setPosition(parent);
 
-    this.stepMetadatas.set(stepMetadata.operationID, stepMetadata);
+    this.stepMetadatas.set(stepMetadata.id, stepMetadata);
 
     return stepMetadata;
   }
 
   updateStepMetadata(stepMetadata: StepMetadata) {
-    this.stepMetadatas.get(stepMetadata.operationID).update(stepMetadata);
+    this.stepMetadatas.get(stepMetadata.id).update(stepMetadata);
   }
 
   static NewWorkflowMetadata(workflowMetadata): WorkflowMetadata {
-    const wfm = new WorkflowMetadata(workflowMetadata.workflowId);
+    const wfm = new WorkflowMetadata();
 
     wfm.isActivated = workflowMetadata.isActivated;
 
     Object.entries(workflowMetadata.stepMetadata).map(([_, value]) => {
       const sm = StepMetadata.NewStepMetadata(value);
-      wfm.stepMetadatas.set(sm.operationID, sm);
+      wfm.stepMetadatas.set(sm.id, sm);
     });
+
+    // Object.entries(workflowMetadata.variables).map(([_, value]) => {
+    //   const v = Variable.NewVariable(value);
+    //   wfm.variables.set(v.id, v);
+    // });
+
+    wfm.workflowName = workflowMetadata.workflowname;
+    wfm.description = workflowMetadata.description;
+    wfm.summary = workflowMetadata.summary;
+    wfm.workflowID = workflowMetadata.workflowId;
 
     return wfm;
   }
 
   normalize() {
     return {
+      summary: this.summary,
+      description: this.description,
+      workflowName: this.workflowName,
       workflowID: this.workflowID,
       isActivated: this.isActivated,
       stepMetadatas: normalizeMap(this.stepMetadatas).map(
@@ -126,16 +178,19 @@ export class WorkflowMetadata {
           return stepMetadata.normalize();
         }
       ),
+      pipes: normalizeMap(this.pipes).map((pipe: Pipe) => {
+        return pipe.normalize();
+      }),
     };
   }
 }
 
 export class MockBoard {
-  arazzo: Arazzo;
+  arazzo: string;
   workflowMetadatas: Map<string, WorkflowMetadata>;
+  info: Info;
 
   constructor() {
-    this.arazzo = new Arazzo();
     this.workflowMetadatas = new Map();
   }
 
@@ -153,14 +208,7 @@ export class MockBoard {
           return workflowMetadata.debug();
         })
         .join();
-
-      console.log(workflowMetadataDeub);
     }
-  }
-
-  deleteWorkflow(workflowID: string) {
-    this.arazzo.workflows.delete(workflowID);
-    this.workflowMetadatas.delete(workflowID);
   }
 
   static NewMockBoard(payload: any): MockBoard {
@@ -173,10 +221,17 @@ export class MockBoard {
       mockboard.workflowMetadatas.set(wfm.workflowID, wfm);
     });
 
-    mockboard.arazzo = Arazzo.NewArazzo(payload.arazzo);
     // console.log("2. mockboard from payload", mockboard);
 
     return mockboard;
+  }
+
+  setOperationsInSteps(pathItems: PathItem[]) {
+    normalizeMap(this.workflowMetadatas).forEach((wfm: WorkflowMetadata) => {
+      normalizeMap(wfm.stepMetadatas).forEach((sm: StepMetadata) => [
+        sm.setOperation(PathItem.GetOperation(pathItems, sm.operationID)),
+      ]);
+    });
   }
 
   addNewStep(
@@ -201,15 +256,31 @@ export class MockBoard {
       .setOperation(operation)
       .setPathName(pathItem.name);
 
-    this.arazzo.workflows.get(currentWorkflowID).addStep(operationID);
+    if (bus?.getClient()?.connected) {
+      bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({
+          id: RanchUtils.genUUID(),
+          request: UpdateWorkflow,
+          payload: JSON.stringify({
+            workflowID: currentWorkflowID,
+            workflowMetadata: this.workflowMetadatas
+              .get(currentWorkflowID)
+              .normalize(),
+          }),
+        }),
+      });
+    }
 
     return stepMetadata;
   }
 
   createNewWorkflow(bus: Bus): WorkflowMetadata {
-    const arazzoWorkflow = this.arazzo.createNewWorkflow();
-    const newWorkflowMetadata = new WorkflowMetadata(arazzoWorkflow.workflowID);
-    this.workflowMetadatas.set(arazzoWorkflow.workflowID, newWorkflowMetadata);
+    const newWorkflowMetadata = new WorkflowMetadata();
+    this.workflowMetadatas.set(
+      newWorkflowMetadata.workflowID,
+      newWorkflowMetadata
+    );
 
     if (bus?.getClient()?.connected) {
       bus.publish({
@@ -218,7 +289,6 @@ export class MockBoard {
           id: RanchUtils.genUUID(),
           request: CreateNewWorkflow,
           payload: JSON.stringify({
-            workflows: this.normalizeArazzoWorkflows(this.arazzo.workflows),
             workflowMetadatas: this.normalizeWorkflowMetadatas(
               this.workflowMetadatas
             ),
@@ -228,12 +298,6 @@ export class MockBoard {
     }
 
     return newWorkflowMetadata;
-  }
-
-  private normalizeArazzoWorkflows(arazzoWorkflow: Map<string, Workflow>) {
-    return normalizeMap(arazzoWorkflow).map((workflow: Workflow) => {
-      return workflow.normalize();
-    });
   }
 
   private normalizeWorkflowMetadatas(
@@ -246,28 +310,22 @@ export class MockBoard {
     );
   }
 
-  changeWorkflowName(oldID: string, newID: string, bus: Bus) {
-    this.arazzo.changeWorkflowName(oldID, newID);
-
-    const workflow = this.workflowMetadatas.get(oldID);
-    workflow.workflowID = newID;
-    this.workflowMetadatas.set(newID, workflow);
-    this.workflowMetadatas.delete(oldID);
-
+  deleteWorkflow(workflowID: string, bus: Bus) {
+    this.workflowMetadatas.delete(workflowID);
     if (bus?.getClient()?.connected) {
       bus.publish({
         destination: "/pub/queue/traffic-control",
         body: JSON.stringify({
           id: RanchUtils.genUUID(),
-          request: ChangeWorkflowName,
+          request: DeleteWorkflow,
           payload: JSON.stringify({
-            oldID: oldID,
-            newID: newID,
+            workflowID: workflowID,
           }),
         }),
       });
     }
   }
+
   updateWorkflow(workflowID: string, bus: Bus) {
     if (bus?.getClient()?.connected) {
       bus.publish({
@@ -277,7 +335,6 @@ export class MockBoard {
           request: UpdateWorkflow,
           payload: JSON.stringify({
             workflowID: workflowID,
-            workflow: this.arazzo.workflows.get(workflowID).normalize(),
             workflowMetadata: this.workflowMetadatas
               .get(workflowID)
               .normalize(),
@@ -288,119 +345,270 @@ export class MockBoard {
   }
 }
 
-export interface Variable {
-  name: string;
-  value: string;
-  id: string;
+export type AnchorType =
+  | "request-body"
+  | "response-body"
+  | "parameter"
+  | "workflow"
+  | "custom";
+
+export type Polymorphism = "anyOf" | "allOf" | "not" | "oneOf" | "";
+
+export class ResponseBodyProperty {
+  mediaTypeName: string;
+  responseCodeName: string;
+  example: string;
+  examples: string;
+  property: string;
+
+  constructor(
+    mediaTypeName: string,
+    responseCodeName: string,
+    property: string
+  ) {
+    this.mediaTypeName = mediaTypeName;
+    this.responseCodeName = responseCodeName;
+    this.example = "";
+    this.examples = "";
+    this.property = property;
+  }
+  addExtraFields(value) {
+    this.example = value?.example;
+    this.examples = value?.examples;
+  }
+
+  getProperty() {
+    return `${this.property}`;
+  }
+
+  normalize() {
+    return {
+      responseCodeName: this.responseCodeName,
+      mediaTypeName: this.mediaTypeName,
+      example: this.example,
+      examples: this.examples,
+      property: this.property,
+    };
+  }
 }
 
-export class TrafficControlPath {
-  mockType: string;
-  examplePreference: string;
-  isPathInMockMode: boolean;
-  pathName: string;
-  variables: Variable[];
-  requestBodyVariables: Variable[];
-
-  static MakeAllAvailableVariables = (tcps: TrafficControlPath[]) => {
-    return tcps
-      .flatMap((tcp: TrafficControlPath) =>
-        tcp.variables.map((variable: Variable) => variable.name)
-      )
-      .filter((variable: string) => variable.length !== 0);
-  };
-  constructor(path: any) {
-    this.mockType = path.mock_type;
-    this.isPathInMockMode = path.mock_mode;
-    this.examplePreference = path.example_preference;
-    this.pathName = path.path_name;
-    this.variables = path.variables;
-    this.requestBodyVariables = path.request_body_variables;
+export class RequestBodyProperty {
+  mediaTypeName: string;
+  example: string;
+  examples: string;
+  property: string;
+  constructor(mediaTypeName: string, property: string) {
+    this.mediaTypeName = mediaTypeName;
+    this.example = "";
+    this.examples = "";
+    this.property = property;
   }
 
-  toggleMockMode() {
-    this.isPathInMockMode = !this.isPathInMockMode;
+  addExtraFields(value) {
+    this.example = value?.example;
+    this.examples = value?.examples;
   }
 
-  setMockType(mockType: string) {
-    this.mockType = mockType;
+  getProperty() {
+    return `${this.property}`;
   }
 
-  addVariables(name: string, value: string): string {
-    const id = RanchUtils.genShortId(6);
-    this.variables.push({
-      name,
-      value,
-      id,
-    });
+  normalize() {
+    return {
+      mediaTypeName: this.mediaTypeName,
+      example: this.example,
+      examples: this.examples,
+      property: this.property,
+    };
+  }
+}
+export class ParameterProperty {
+  type: In;
+  property: string;
 
-    return id;
+  constructor(type: In, property: string) {
+    this.property = property;
+    this.type = type;
   }
 
-  removeVariables(removeMe: Variable) {
-    this.variables = this.variables.filter((variable: Variable) => {
-      return variable.id !== removeMe.id;
-    });
+  getProperty() {
+    return `$${this.type}.${this.property}`;
   }
 
-  changeVariable(variable: Variable) {
-    this.variables.forEach((oldVariable) => {
-      if (oldVariable.id === variable.id) {
-        oldVariable = variable;
-      }
-    });
+  normalize() {
+    return {
+      in: this.type,
+      property: this.property,
+    };
   }
-  addRBVariables(name: string, value: string): string {
-    const id = RanchUtils.genShortId(6);
-    this.requestBodyVariables.push({
-      name,
-      value,
-      id,
-    });
+}
 
-    return id;
+type Property = ResponseBodyProperty | RequestBodyProperty | ParameterProperty;
+
+export class Anchor {
+  referenceType: AnchorType;
+  id: string;
+  responseBodyProperty?: ResponseBodyProperty;
+  requestBodyProperty?: RequestBodyProperty;
+  parameterProperty?: ParameterProperty;
+  expression: string;
+  pathName?: string;
+  pathMethod?: string;
+  stepID: string;
+  value: string;
+  referencePipes: Pipe[];
+  lastSelectedPipe: Pipe | null;
+
+  constructor(referenceType: AnchorType, propertyType: Property) {
+    this.id = RanchUtils.genShortId(6);
+    this.value = "";
+    this.referenceType = referenceType;
+    if (propertyType instanceof ResponseBodyProperty) {
+      this.responseBodyProperty = propertyType;
+    } else if (propertyType instanceof RequestBodyProperty) {
+      this.requestBodyProperty = propertyType;
+    } else if (propertyType instanceof ParameterProperty) {
+      this.parameterProperty = propertyType;
+    }
+    this.pathMethod = "";
+    this.pathName = "";
+    this.referencePipes = [];
+    this.lastSelectedPipe = null;
+    this.stepID = "";
   }
 
-  removeRBVariables(removeMe: Variable) {
-    this.requestBodyVariables = this.requestBodyVariables.filter(
-      (variable: Variable) => {
-        return variable.id !== removeMe.id;
-      }
-    );
+  isInPipe() {
+    return this.referencePipes.length > 0;
   }
 
-  changeRBVariable(variable: Variable) {
-    this.requestBodyVariables.forEach((oldVariable) => {
-      if (oldVariable.id === variable.id) {
-        oldVariable = variable;
-      }
-    });
+  addAnchorPipe(pipe: Pipe) {
+    this.lastSelectedPipe = pipe;
+    this.referencePipes.push(pipe);
+
+    return pipe;
   }
 
-  setExamplePreference(examplePreference: string) {
-    this.examplePreference = examplePreference;
+  addPathAnchor(pathName: string, pathMethod: string, stepID: string) {
+    this.pathMethod = pathMethod;
+    this.pathName = pathName;
+    this.stepID = stepID;
   }
 
-  FillPath(path: TrafficControlPath, newPath: TrafficControlPath) {}
-
-  static CreateTrafficControlPaths(
-    paths: TrafficControlPath[]
-  ): TrafficControlPath[] {
-    return paths.map((path: TrafficControlPath) => {
-      let newPath = new TrafficControlPath(path);
-
-      return newPath;
-    });
+  newPipe(): Pipe {
+    const pipe = new Pipe(this.referenceType, this.parameterProperty);
+    this.addAnchorPipe(pipe);
+    // overwright input
+    pipe.input = this;
+    return pipe;
   }
-  static CreateTrafficControlPathsFromStorage(
-    paths: TrafficControlPath[]
-  ): TrafficControlPath[] {
-    if (!paths) return [];
 
-    return paths.map((path: TrafficControlPath) => {
-      const tcp = new TrafficControlPath(path);
-      return tcp;
-    });
+  getProperty() {
+    if (this.responseBodyProperty) {
+      return this.responseBodyProperty.getProperty();
+    }
+    if (this.requestBodyProperty) {
+      return this.requestBodyProperty.getProperty();
+    }
+    if (this.parameterProperty) {
+      return this.parameterProperty.getProperty();
+    }
+  }
+
+  getFullProperty() {
+    return `${this.pathName} | ${this.pathMethod} | ${this.getProperty()}`;
+  }
+
+  addExtraFields(value) {
+    this.id = value?.id;
+    this.value = value.value;
+  }
+
+  normalize() {
+    let obj: any = {};
+
+    if (this.responseBodyProperty) {
+      obj.responseBodyProperty = this.responseBodyProperty.normalize();
+    }
+    if (this.requestBodyProperty) {
+      obj.requestBodyProperty = this.requestBodyProperty.normalize();
+    }
+
+    if (this.responseBodyProperty) {
+      obj.parameterProperty = this.parameterProperty.normalize();
+    }
+
+    if (this.pathName) {
+      obj.pathName = this.pathName;
+    }
+
+    if (this.pathMethod) {
+      obj.pathMethod = this.pathMethod;
+    }
+
+    return {
+      referenceType: this.referenceType,
+      id: this.id,
+      ...obj,
+    };
+  }
+}
+
+export class Pipe {
+  id: string;
+  name: string;
+  input: Anchor;
+  outputs: Anchor[];
+  exposeOutOfWorkflow: boolean;
+  isPopulated: boolean;
+  constructor(referenceType: AnchorType, propertyType: Property) {
+    this.id = RanchUtils.genShortId(6);
+    this.name = "";
+    this.input = new Anchor(referenceType, propertyType);
+    this.outputs = [];
+    this.exposeOutOfWorkflow = false;
+    this.isPopulated = false;
+  }
+
+  renderOutputs() {
+    if (this.outputs.length === 0) {
+      return html`❌`;
+    }
+    if (this.outputs.length === 1) {
+      return html` ${this.outputs[0].getProperty()} `;
+    }
+
+    return html` <sl-badge variant="primary" pill pulse
+      >${this.outputs.length}</sl-badge
+    >`;
+  }
+
+  renderPipeBadge() {
+    return html`<sl-badge
+      >${this.input.getProperty()}
+      <sl-icon name="chevron-double-right"></sl-icon
+      >${this.renderOutputs()}</sl-badge
+    >`;
+  }
+
+  addPathAnchor(pathName: string, pathMethod: string, stepID: string): Pipe {
+    this.input.addPathAnchor(pathName, pathMethod, stepID);
+
+    return this;
+  }
+
+  addOutput(reference: Anchor) {
+    this.outputs.push(reference);
+  }
+
+  normalize() {
+    return {
+      id: this.id,
+      name: this.name,
+      input: this.input.normalize(),
+      outputs: this.outputs.map((output: Anchor) => output.normalize()),
+      exposeOutOfWorkflow: this.exposeOutOfWorkflow,
+      isPopulated: this.isPopulated,
+    };
   }
 }
 

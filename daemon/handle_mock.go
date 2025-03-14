@@ -175,6 +175,8 @@ func (ws *WiretapService) handleMockRequest(
 	newMock, _ := injectAndSetMockVariables(request.HttpRequest, config, mock)
 	mock = newMock
 
+	handleVariables(ws.docModel.Paths.PathItems, request.HttpRequest, config)
+
 	// validate http request.
 	ws.ValidateRequest(request, newReq)
 
