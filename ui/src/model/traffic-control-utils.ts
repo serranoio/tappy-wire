@@ -75,3 +75,41 @@ export const insertSpaces = (content: string) => {
     return html`${word}&nbsp;&nbsp;&nbsp;`;
   });
 };
+
+export const insertSpacesString = (content: string) => {
+  return content
+    .split(" ")
+    .map((word) => {
+      return `<span style="margin-right: 3px;">${word}</span>`;
+    })
+    .join("");
+};
+
+// Always escape HTML for text arguments!
+function escapeHtml(html) {
+  const div = document.createElement("div");
+  div.textContent = html;
+  return div.innerHTML;
+}
+
+// Custom function to emit toast notifications
+export function notify(
+  message: string,
+  variant: "warning" | "primary" | "success" | "neutral" = "primary",
+  icon = "info-circle",
+  duration = 3000
+) {
+  const alert = Object.assign(document.createElement("sl-alert"), {
+    variant,
+    closable: true,
+    duration: duration,
+    innerHTML: `
+        <sl-icon name="${icon}" slot="icon"></sl-icon>
+
+        ${insertSpacesString(message)}
+      `,
+  });
+
+  document.body.append(alert);
+  return alert.toast();
+}

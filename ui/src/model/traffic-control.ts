@@ -9,6 +9,7 @@ import {
 import { MediaType, Operation, PathItem, ResponseCode } from "./paths";
 import { relativeTimeThreshold } from "moment";
 import { html } from "lit";
+import { TrafficControlComponent } from "@/components/controls/traffic-control.component";
 
 export class StepMetadata {
   id: string;
@@ -153,6 +154,11 @@ export class WorkflowMetadata {
       wfm.stepMetadatas.set(sm.id, sm);
     });
 
+    Object.entries(workflowMetadata.pipes).map(([_, value]) => {
+      const pipe = Pipe.NewPipe(value);
+      wfm.pipes.set(pipe.id, pipe);
+    });
+
     // Object.entries(workflowMetadata.variables).map(([_, value]) => {
     //   const v = Variable.NewVariable(value);
     //   wfm.variables.set(v.id, v);
@@ -214,14 +220,11 @@ export class MockBoard {
   static NewMockBoard(payload: any): MockBoard {
     const mockboard = new MockBoard();
 
-    // console.log("1. paylod", payload);
     payload = deepSnakeToCamel(payload);
     Object.entries(payload.workflowMetadata).map(([_, workflowMetadata]) => {
       const wfm = WorkflowMetadata.NewWorkflowMetadata(workflowMetadata);
       mockboard.workflowMetadatas.set(wfm.workflowID, wfm);
     });
-
-    // console.log("2. mockboard from payload", mockboard);
 
     return mockboard;
   }
@@ -310,6 +313,13 @@ export class MockBoard {
     );
   }
 
+  addNewPipe(workflowID: string, pipe: Pipe, bus: Bus) {
+    const workflow = this.workflowMetadatas.get(workflowID);
+    workflow.pipes.set(pipe.id, pipe);
+
+    this.updateWorkflow(workflowID, bus);
+  }
+
   deleteWorkflow(workflowID: string, bus: Bus) {
     this.workflowMetadatas.delete(workflowID);
     if (bus?.getClient()?.connected) {
@@ -372,13 +382,25 @@ export class ResponseBodyProperty {
     this.examples = "";
     this.property = property;
   }
+
+  static New(value): ResponseBodyProperty {
+    const rbp = new ResponseBodyProperty(
+      value.mediatypename,
+      value.responsecodename,
+      value.property
+    );
+    rbp.example = value.example;
+    rbp.examples = value.examples;
+    return rbp;
+  }
+
   addExtraFields(value) {
     this.example = value?.example;
     this.examples = value?.examples;
   }
 
   getProperty() {
-    return `${this.property}`;
+    return `$${this.property}`;
   }
 
   normalize() {
@@ -404,13 +426,20 @@ export class RequestBodyProperty {
     this.property = property;
   }
 
+  static New(value): RequestBodyProperty {
+    const rqbp = new RequestBodyProperty(value.mediatypename, value.property);
+    rqbp.example = value.example;
+    rqbp.examples = value.examples;
+    return rqbp;
+  }
+
   addExtraFields(value) {
     this.example = value?.example;
     this.examples = value?.examples;
   }
 
   getProperty() {
-    return `${this.property}`;
+    return `$${this.property}`;
   }
 
   normalize() {
@@ -431,19 +460,28 @@ export class ParameterProperty {
     this.type = type;
   }
 
+  static New(value): ParameterProperty {
+    return new ParameterProperty(value.type, value.property);
+  }
+
   getProperty() {
     return `$${this.type}.${this.property}`;
   }
 
   normalize() {
     return {
-      in: this.type,
+      type: this.type,
       property: this.property,
     };
   }
 }
 
 type Property = ResponseBodyProperty | RequestBodyProperty | ParameterProperty;
+
+export interface AnchorReference {
+  id: string; // anchor id
+  property: string; // anchor property
+}
 
 export class Anchor {
   referenceType: AnchorType;
@@ -456,8 +494,11 @@ export class Anchor {
   pathMethod?: string;
   stepID: string;
   value: string;
-  referencePipes: Pipe[];
+  expressionValue: string;
+  receiverPipes: string[];
+  senderPipes: string[];
   lastSelectedPipe: Pipe | null;
+  anchorReferences: AnchorReference[];
 
   constructor(referenceType: AnchorType, propertyType: Property) {
     this.id = RanchUtils.genShortId(6);
@@ -472,18 +513,86 @@ export class Anchor {
     }
     this.pathMethod = "";
     this.pathName = "";
-    this.referencePipes = [];
+    this.receiverPipes = [];
+    this.senderPipes = [];
     this.lastSelectedPipe = null;
     this.stepID = "";
+    this.anchorReferences = [];
+    this.expressionValue = "";
+  }
+
+  static NewAnchor(value): Anchor {
+    const anchor = new Anchor(value.referencetype, value[value.referencetype]);
+
+    anchor.id = value.id;
+    anchor.value = value.value;
+    anchor.expression = value.expression;
+    anchor.expressionValue = value.expressionvalue;
+    anchor.pathMethod = value?.pathmethod;
+    anchor.pathName = value?.pathname;
+    anchor.receiverPipes = value?.receiverpipes;
+    anchor.senderPipes = value?.senderpipes;
+    anchor.stepID = value?.stepid;
+    anchor.anchorReferences = value?.anchorreferences;
+    anchor.referenceType = value.referencetype;
+    switch (value.referencetype as AnchorType) {
+      case "request-body":
+        anchor.requestBodyProperty = RequestBodyProperty.New(
+          value.requestbodyproperty
+        );
+        break;
+      case "response-body":
+        anchor.responseBodyProperty = ResponseBodyProperty.New(
+          value.responsebodyproperty
+        );
+        break;
+      case "parameter":
+        anchor.parameterProperty = ParameterProperty.New(
+          value.parameterproperty
+        );
+        break;
+      case "workflow":
+    }
+
+    return anchor;
+  }
+  renderInputExpressionBox() {
+    return this.getInputExpression().map((ar: AnchorReference) => {
+      return html`<sl-badge>${ar.property}</sl-badge>`;
+    });
+  }
+
+  // get all receiver pipe's properties.
+  getInputExpression() {
+    if (this.anchorReferences.length === 0) {
+      return [{ id: this.id, property: this.getProperty() }];
+    }
+
+    return [
+      ...this.anchorReferences,
+      { id: this.id, property: this.getProperty() },
+    ];
+  }
+
+  addAnchorReference(anchorReference: AnchorReference) {
+    this.anchorReferences.push(anchorReference);
   }
 
   isInPipe() {
-    return this.referencePipes.length > 0;
+    return this.isAReceiver() || this.isASender();
+  }
+
+  isAReceiver() {
+    return this.receiverPipes.length > 0;
+  }
+
+  isASender() {
+    return this.senderPipes.length > 0;
   }
 
   addAnchorPipe(pipe: Pipe) {
     this.lastSelectedPipe = pipe;
-    this.referencePipes.push(pipe);
+    this.senderPipes.push(pipe.id);
 
     return pipe;
   }
@@ -494,9 +603,13 @@ export class Anchor {
     this.stepID = stepID;
   }
 
+  // send data through this pipe
   newPipe(): Pipe {
     const pipe = new Pipe(this.referenceType, this.parameterProperty);
     this.addAnchorPipe(pipe);
+
+    this.expression = this.getExpression();
+
     // overwright input
     pipe.input = this;
     return pipe;
@@ -514,6 +627,10 @@ export class Anchor {
     }
   }
 
+  getExpression() {
+    return this.getProperty();
+  }
+
   getFullProperty() {
     return `${this.pathName} | ${this.pathMethod} | ${this.getProperty()}`;
   }
@@ -521,6 +638,42 @@ export class Anchor {
   addExtraFields(value) {
     this.id = value?.id;
     this.value = value.value;
+  }
+
+  deleteAnchor(workflowID: string, pipeID: string, bus: Bus) {
+    if (bus?.getClient()?.connected) {
+      bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({
+          id: RanchUtils.genUUID(),
+          request: DeleteAnchor,
+          payload: JSON.stringify({
+            workflowID: workflowID,
+            pipeID: pipeID,
+            anchorID: this.id,
+          }),
+        }),
+      });
+    }
+  }
+
+  updateAnchor(workflowID: string, bus: Bus) {
+    const pipeID = this.receiverPipes[0];
+
+    if (bus?.getClient()?.connected) {
+      bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({
+          id: RanchUtils.genUUID(),
+          request: UpdateAnchor,
+          payload: JSON.stringify({
+            workflowID: workflowID,
+            pipeID: pipeID,
+            anchor: this.normalize(),
+          }),
+        }),
+      });
+    }
   }
 
   normalize() {
@@ -533,7 +686,7 @@ export class Anchor {
       obj.requestBodyProperty = this.requestBodyProperty.normalize();
     }
 
-    if (this.responseBodyProperty) {
+    if (this.parameterProperty) {
       obj.parameterProperty = this.parameterProperty.normalize();
     }
 
@@ -548,6 +701,13 @@ export class Anchor {
     return {
       referenceType: this.referenceType,
       id: this.id,
+      expression: this.expression,
+      stepID: this.stepID,
+      value: this.value,
+      expressionValue: this.expressionValue,
+      receiverPipes: this.receiverPipes,
+      senderPipes: this.senderPipes,
+      anchorReferences: this.anchorReferences,
       ...obj,
     };
   }
@@ -583,11 +743,30 @@ export class Pipe {
   }
 
   renderPipeBadge() {
-    return html`<sl-badge
+    return html`<sl-badge class="pipe-badge"
       >${this.input.getProperty()}
       <sl-icon name="chevron-double-right"></sl-icon
       >${this.renderOutputs()}</sl-badge
     >`;
+  }
+
+  static NewPipe(value): Pipe {
+    const pipe = new Pipe(
+      value.input.referencetype,
+      value.input[value.input.referencetype]
+    );
+
+    pipe.id = value.id;
+    pipe.exposeOutOfWorkflow = value.exposeoutofworkflow;
+    pipe.isPopulated = value.ispopulated;
+    pipe.name = value.name;
+    pipe.input = Anchor.NewAnchor(value.input);
+    pipe.id = value.id;
+    pipe.outputs = value.outputs.map((output: Anchor) =>
+      Anchor.NewAnchor(output)
+    );
+
+    return pipe;
   }
 
   addPathAnchor(pathName: string, pathMethod: string, stepID: string): Pipe {
@@ -597,7 +776,49 @@ export class Pipe {
   }
 
   addOutput(reference: Anchor) {
+    reference.receiverPipes.push(this.id);
+    // I need to send in the anchor ID, but also the property
+    // why not just property? that won't work. However, render it as
+    reference.addAnchorReference({
+      id: this.input.id,
+      property: this.input.getProperty(),
+    });
+
+    reference.expression = this.input.getExpression();
+    reference.lastSelectedPipe = this;
     this.outputs.push(reference);
+  }
+
+  // ! not implementing yet
+  deletePipe(workflowID: string, bus: Bus) {
+    if (bus?.getClient()?.connected) {
+      bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({
+          id: RanchUtils.genUUID(),
+          request: DeletePipe,
+          payload: JSON.stringify({
+            workflowID: workflowID,
+          }),
+        }),
+      });
+    }
+  }
+
+  updatePipe(workflowID: string, bus: Bus) {
+    if (bus?.getClient()?.connected) {
+      bus.publish({
+        destination: "/pub/queue/traffic-control",
+        body: JSON.stringify({
+          id: RanchUtils.genUUID(),
+          request: UpdatePipe,
+          payload: JSON.stringify({
+            workflowID: workflowID,
+            pipe: this.normalize(),
+          }),
+        }),
+      });
+    }
   }
 
   normalize() {
@@ -630,6 +851,13 @@ export const ChangeWorkflowName = "change-workflow-name";
 export const UpdateWorkflow = "update-workflow";
 export const DeleteWorkflow = "delete-workflow";
 export const GetWorkflows = "get-workflows";
+
+// holy shit
+export const UpdateAnchor = "update-anchor";
+export const DeleteAnchor = "delete-anchor";
+
+export const UpdatePipe = "update-pipe";
+export const DeletePipe = "delete-pipe";
 
 export const GetAllPathsCommand = "get-all-paths";
 

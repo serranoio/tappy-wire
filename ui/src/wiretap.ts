@@ -352,6 +352,11 @@ export class WiretapComponent extends LitElement {
   trafficControlHandler(): BusCallback<CommandResponse> {
     return (msg: CommandResponse) => {
       const payload = msg.payload;
+      if (payload.error) {
+        console.log("error in backend");
+        return;
+      }
+
       if (payload.payload?.arazzo) {
         // console.log("mockboard request");
         const mockboard = payload?.payload;
@@ -363,7 +368,8 @@ export class WiretapComponent extends LitElement {
           this.requestUpdate();
         }
       } else {
-        // console.log("path items ", payload?.payload);
+        console.log(payload, payload);
+
         const pathItems = PathItem.NewPathItems(payload?.payload);
         localforage.setItem(PathsKey, pathItems);
         this._trafficControlStore.set(PathsKey, pathItems);

@@ -12,7 +12,6 @@ import (
 
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
 	"github.com/pb33f/libopenapi/orderedmap"
-	"github.com/speakeasy-api/openapi/arazzo"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gobwas/glob"
@@ -367,63 +366,6 @@ func (t *TrafficControlPath) MarshalJSON() ([]byte, error) {
 	// Marshal the auxiliary struct to JSON.
 	return json.Marshal(aux)
 
-}
-
-type Position struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
-
-type StepMetadata struct {
-	ID          string   `json:"id"`
-	Description string   `json:"description"`
-	StepName    string   `json:"stepName"`
-	OperationID string   `json:"operationID"`
-	Position    Position `json:"position"`
-	PathName    string   `json:"pathName"`
-}
-
-type IO string
-
-const (
-	output IO = "output"
-	input  IO = "input"
-)
-
-type In string
-
-const (
-	QUERY  In = "query"
-	HEADER In = "header"
-	PATH   In = "path"
-	COOKIE In = "cookie"
-)
-
-type Variable struct {
-	LevelID           string      `json:"levelID"`
-	IO                IO          `json:"io"`
-	Code              string      `json:"code"`
-	MediaType         string      `json:"mediaType"`
-	Property          string      `json:"property"`
-	ID                string      `json:"id"`
-	Value             interface{} `json:"value"`
-	In                string      `json:"in"`
-	ReceiverVariables []*Variable `jsons:"receiverVariables"`
-}
-
-type WorkflowMetadata struct {
-	StepMetadatas map[string]*StepMetadata `json:"step_metadata"`
-	WorkflowID    string                   `json:"workflow_id"`
-	IsActivated   bool                     `json:"is_activated"`
-	Variables     map[string]*Variable     `json:"variables"`
-	Summary       string                   `json:"summary"`
-	Description   string                   `json:"description"`
-	WorkflowName  string                   `json:"workflowName"`
-}
-
-type Mockboard struct {
-	Arazzo           *arazzo.Arazzo               `json:"arazzo"`
-	WorkflowMetadata map[string]*WorkflowMetadata `json:"workflow_metadata"`
 }
 
 const ConfigKey = "config"

@@ -45,7 +45,9 @@ export class ArazzoStep extends LitElement {
   }
 
   getSLBadges() {
-    return this.renderRoot?.querySelectorAll(".anchor-badge");
+    if (!this.renderRoot) return [];
+
+    return this.renderRoot.querySelectorAll(".anchor-badge");
   }
 
   private dragElement(elmnt) {
@@ -336,36 +338,7 @@ export class ArazzoStep extends LitElement {
       code?: string,
       input?: IO
     ) => {
-      return html`<sl-menu
-        slot="submenu"
-        @sl-select=${(e) => {
-          const mediaType = e.detail.item.value;
-
-          let newAnchor: Anchor;
-          if (input === "input") {
-            newAnchor = new Anchor(
-              "request-body",
-              new RequestBodyProperty(mediaType, this.constructProperty())
-            );
-          } else {
-            newAnchor = new Anchor(
-              "response-body",
-              new ResponseBodyProperty(
-                mediaType,
-                code,
-                this.constructProperty()
-              )
-            );
-          }
-          newAnchor.addPathAnchor(
-            this.stepMetadata.pathName,
-            this.stepMetadata.operation.method,
-            this.stepMetadata.id
-          );
-
-          sendEvent<Anchor>(this, SelectingAnchorEvent, newAnchor);
-        }}
-      >
+      return html`<sl-menu slot="submenu">
         ${normalizeMap(content).map((mediaType: MediaType) => {
           return html`
             <sl-menu-item
@@ -376,7 +349,38 @@ export class ArazzoStep extends LitElement {
               }}
             >
               ${mediaType.name}
-              <sl-menu slot="submenu">
+              <sl-menu
+                slot="submenu"
+                @click=${() => {
+                  let newAnchor: Anchor;
+                  if (input === "input") {
+                    newAnchor = new Anchor(
+                      "request-body",
+                      new RequestBodyProperty(
+                        mediaType.name,
+                        this.constructProperty()
+                      )
+                    );
+                  } else {
+                    newAnchor = new Anchor(
+                      "response-body",
+                      new ResponseBodyProperty(
+                        mediaType.name,
+                        code,
+                        this.constructProperty()
+                      )
+                    );
+                  }
+                  newAnchor.addPathAnchor(
+                    this.stepMetadata.pathName,
+                    this.stepMetadata.operation.method,
+                    this.stepMetadata.id
+                  );
+                  console.log("SEND EVENT");
+
+                  sendEvent<Anchor>(this, SelectingAnchorEvent, newAnchor);
+                }}
+              >
                 ${this.renderSchemaContainer(mediaType.resolvedSchema)}
               </sl-menu>
             </sl-menu-item>
@@ -400,6 +404,7 @@ export class ArazzoStep extends LitElement {
           >
           </sl-icon>
           <p>Request Body</p>
+          ${this.hasPipeInputAnchor("requestBodyProperty")}
           ${renderMediaTypeMenu(requestBody?.content, "", "input")}
         </sl-menu-item>
       `;
@@ -409,10 +414,7 @@ export class ArazzoStep extends LitElement {
       return html`
         <div class="inputs">
           <p class="label">inputs</p>
-          <sl-menu>
-            ${renderParameters()} ${renderRequestBody()}
-            ${this.hasPipeInputAnchor("requestBodyProperty")}
-          </sl-menu>
+          <sl-menu> ${renderParameters()} ${renderRequestBody()} </sl-menu>
         </div>
       `;
     };

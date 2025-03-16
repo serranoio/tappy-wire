@@ -22,6 +22,7 @@ type WorkflowMetadata struct {
 	IsActivated   bool                   `json:"isActivated"`
 	Variables     []*shared.Variable     `json:"variables"`
 	StepMetadatas []*shared.StepMetadata `json:"stepMetadatas"`
+	Pipes         []*shared.Pipe         `json:"pipes"`
 	Summary       string                 `json:"summary"`
 	Description   string                 `json:"description"`
 }
@@ -53,6 +54,7 @@ func NewWorkflowMetadataFromPayload(workflowMetadata WorkflowMetadata) *shared.W
 		Summary:       workflowMetadata.Summary,
 		Description:   workflowMetadata.Description,
 		WorkflowName:  workflowMetadata.WorkflowName,
+		Pipes:         make(map[string]*shared.Pipe),
 	}
 
 }
@@ -112,23 +114,29 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 	if err != nil {
 		panic("fuck")
 	}
+	id := workflowPayload.WorkflowMetadata.WorkflowID
 
 	ss.mutex.Lock()
+	ss.mockboard.WorkflowMetadata[id].Pipes = make(map[string]*shared.Pipe)
+	for _, pipe := range workflowPayload.WorkflowMetadata.Pipes {
+		ss.mockboard.WorkflowMetadata[id].Pipes[pipe.ID] = pipe
+	}
+
 	// create new map with new variables, lol. fuck it.
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].Variables = make(map[string]*shared.Variable)
+	ss.mockboard.WorkflowMetadata[id].Variables = make(map[string]*shared.Variable)
 	for _, variable := range workflowPayload.WorkflowMetadata.Variables {
-		ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].Variables[variable.ID] = variable
+		ss.mockboard.WorkflowMetadata[id].Variables[variable.ID] = variable
 	}
 
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].StepMetadatas = make(map[string]*shared.StepMetadata)
+	ss.mockboard.WorkflowMetadata[id].StepMetadatas = make(map[string]*shared.StepMetadata)
 	for _, stepMetadata := range workflowPayload.WorkflowMetadata.StepMetadatas {
-		ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].StepMetadatas[stepMetadata.ID] = stepMetadata
+		ss.mockboard.WorkflowMetadata[id].StepMetadatas[stepMetadata.ID] = stepMetadata
 	}
 
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].IsActivated = workflowPayload.WorkflowMetadata.IsActivated
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].Description = workflowPayload.WorkflowMetadata.Description
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].Summary = workflowPayload.WorkflowMetadata.Summary
-	ss.mockboard.WorkflowMetadata[workflowPayload.WorkflowMetadata.WorkflowID].WorkflowName = workflowPayload.WorkflowMetadata.WorkflowName
+	ss.mockboard.WorkflowMetadata[id].IsActivated = workflowPayload.WorkflowMetadata.IsActivated
+	ss.mockboard.WorkflowMetadata[id].Description = workflowPayload.WorkflowMetadata.Description
+	ss.mockboard.WorkflowMetadata[id].Summary = workflowPayload.WorkflowMetadata.Summary
+	ss.mockboard.WorkflowMetadata[id].WorkflowName = workflowPayload.WorkflowMetadata.WorkflowName
 	ss.mutex.Unlock()
 
 	ss.updateState()

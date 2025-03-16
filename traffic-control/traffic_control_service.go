@@ -85,6 +85,9 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	tcs.resolvedSchemas = make(map[string]string)
 
 	mockboard, err := setupMockboard()
+
+	mockboard.DocModel = &m.Model
+
 	if err != nil {
 		panic(err)
 	}
@@ -96,6 +99,10 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 
 func (ss *TrafficControlService) HandleServiceRequest(request *model.Request, core service.FabricServiceCore) {
 	switch request.RequestCommand {
+	case UpdateAnchor:
+		ss.updateAnchor(request, core)
+	case UpdatePipe:
+		ss.updatePipe(request, core)
 	case GetWorkflows:
 		ss.getWorkflows(request, core)
 	case CreateNewWorkflow:
