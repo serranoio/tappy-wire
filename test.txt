@@ -1,277 +1,261 @@
-$ref: "#/components/schemas/Pet"
-
+type: object
 required:
     - name
-    - price
-    - photoUrls
-type: object
+    - horse
 properties:
-    id:
-        type: integer
-        format: int64
-        example: 10
     name:
         type: string
-        example: doggie
-    category:
-        type: object
-        properties:
-            id:
-                type: integer
-                format: int64
-                example: 1
-            name:
-                type: string
-                example: Dogs
-        xml:
-            name: category
-    photoUrls:
+        description: The cowboy's name
+        example: "Buck 'The Kid' Anderson"
+    horse:
+        type: string
+        description: The name of their trusty steed
+        example: "Lightning"
+    skills:
         type: array
-        xml:
-            wrapped: true
         items:
             type: string
-            xml:
-                name: photoUrl
-    price:
+            enum:
+                - shooting
+                - lassoing
+                - poker
+                - horseback-riding
+
+type: object
+required:
+    - name
+    - horse
+properties:
+    name:
+        type: string
+        description: The cowboy's name
+        example: "Buck 'The Kid' Anderson"
+    horse:
+        type: string
+        description: The name of their trusty steed
+        example: "Lightning"
+    skills:
+        type: array
+        items:
+            type: string
+            enum:
+                - shooting
+                - lassoing
+                - poker
+                - horseback-riding
+
+
+type: object
+properties:
+    message:
+        type: string
+        description: Response message
+        example: "Howdy partner!"
+    timestamp:
+        type: string
+        format: date-time
+        example: "2025-02-28T14:30:00Z"
+
+type: object
+properties:
+    message:
+        type: string
+        description: Response message
+        example: "Howdy partner!"
+    timestamp:
+        type: string
+        format: date-time
+        example: "2025-02-28T14:30:00Z"
+
+
+type: object
+required:
+    - code
+    - message
+properties:
+    code:
+        type: string
+        description: Error code
+        example: "SALOON-001"
+    message:
+        type: string
+        description: Error message
+        example: "Partner, that ain't no valid cowboy name!"
+
+type: object
+required:
+    - code
+    - message
+properties:
+    code:
+        type: string
+        description: Error code
+        example: "SALOON-001"
+    message:
+        type: string
+        description: Error message
+        example: "Partner, that ain't no valid cowboy name!"
+
+
+type: object
+required:
+    - name
+    - crimes
+properties:
+    name:
+        type: string
+        description: Name of the outlaw
+        example: "Black Jack McCoy"
+    crimes:
+        type: array
+        items:
+            type: string
+            enum:
+                - bank-robbery
+                - horse-theft
+                - saloon-brawl
+                - train-heist
+    reward:
         type: number
-    tags:
+        description: Reward amount in gold coins
+        example: 1000
+
+type: object
+required:
+    - name
+    - crimes
+properties:
+    name:
+        type: string
+        description: Name of the outlaw
+        example: "Black Jack McCoy"
+    crimes:
         type: array
-        xml:
-            wrapped: true
         items:
-            type: object
-            properties:
-                id:
-                    type: integer
-                    format: int64
-                name:
-                    type: string
-            xml:
-                name: tag
-    status:
-        type: string
-        description: pet status in the store
-        enum:
-            - available
-            - pending
-            - sold
-xml:
-    name: pet
-
-
-type: array
-items:
-    required:
-        - name
-        - price
-        - photoUrls
-    type: object
-    properties:
-        id:
-            type: integer
-            format: int64
-            example: 10
-        name:
             type: string
-            example: doggie
-        category:
-            type: object
-            properties:
-                id:
-                    type: integer
-                    format: int64
-                    example: 1
-                name:
-                    type: string
-                    example: Dogs
-            xml:
-                name: category
-        photoUrls:
-            type: array
-            xml:
-                wrapped: true
-            items:
-                type: string
-                xml:
-                    name: photoUrl
-        price:
-            type: number
-        tags:
-            type: array
-            xml:
-                wrapped: true
-            items:
-                type: object
-                properties:
-                    id:
-                        type: integer
-                        format: int64
-                    name:
-                        type: string
-                xml:
-                    name: tag
-        status:
-            type: string
-            description: pet status in the store
             enum:
-                - available
-                - pending
-                - sold
-    xml:
-        name: pet
+                - bank-robbery
+                - horse-theft
+                - saloon-brawl
+                - train-heist
+    reward:
+        type: number
+        description: Reward amount in gold coins
+        example: 1000
 
-type: array
-items:
-    required:
-        - name
-        - price
-        - photoUrls
-    type: object
-    properties:
-        id:
-            type: integer
-            format: int64
-            example: 10
-        name:
+
+type: object
+properties:
+    cowboyName:
+        type: string
+        description: The cowboy's name derived from the served drink
+        example: "Buck 'The Kid' Anderson"
+    crimes:
+        type: array
+        items:
             type: string
-            example: doggie
-        category:
-            type: object
-            properties:
-                id:
-                    type: integer
-                    format: int64
-                    example: 1
-                name:
-                    type: string
-                    example: Dogs
-            xml:
-                name: category
-        photoUrls:
-            type: array
-            xml:
-                wrapped: true
-            items:
-                type: string
-                xml:
-                    name: photoUrl
-        price:
-            type: number
-        tags:
-            type: array
-            xml:
-                wrapped: true
-            items:
-                type: object
-                properties:
-                    id:
-                        type: integer
-                        format: int64
-                    name:
-                        type: string
-                xml:
-                    name: tag
-        status:
-            type: string
-            description: pet status in the store
             enum:
-                - available
-                - pending
-                - sold
-    xml:
-        name: pet
+                - "bank-robbery"
+                - "horse-theft"
+                - "saloon-brawl"
+                - "train-heist"
+    reward:
+        type: number
+        description: Reward amount in gold coins
+        example: 1000
 
+type: object
+properties:
+    cowboyName:
+        type: string
+        description: The cowboy's name derived from the served drink
+        example: "Buck 'The Kid' Anderson"
+    crimes:
+        type: array
+        items:
+            type: string
+            enum:
+                - "bank-robbery"
+                - "horse-theft"
+                - "saloon-brawl"
+                - "train-heist"
+    reward:
+        type: number
+        description: Reward amount in gold coins
+        example: 1000
+
+
+$ref: "#/components/schemas/Mojito"
 
 type: object
 properties:
     id:
-        type: integer
-        format: int64
-        example: 10
-    description:
         type: string
-        example: "Summer Sale - 10% off!"
-    couponCode:
-        type: string
-        example: "SUMMERSALE"
-xml:
-    name: coupon
-
-type: object
-properties:
-    id:
-        type: integer
-        format: int64
-        example: 10
-    description:
-        type: string
-        example: "Summer Sale - 10% off!"
-    couponCode:
-        type: string
-        example: "SUMMERSALE"
-xml:
-    name: coupon
-
-
-type: object
-properties:
-    id:
-        type: integer
-        format: int64
-        example: 10
-    petId:
-        type: integer
-        format: int64
-        example: 198772
-    quantity:
-        type: integer
-        format: int32
-        example: 7
-    status:
-        type: string
-        description: Order Status
-        example: approved
-        enum:
-            - placed
-            - approved
-            - delivered
-    complete:
+        description: Drink ID
+    rum:
         type: boolean
-    couponCode:
-        type: string
-        example: "SUMMERSALE"
-xml:
-    name: order
-
-type: object
-properties:
-    id:
-        type: integer
-        format: int64
-        example: 10
-    petId:
-        type: integer
-        format: int64
-        example: 198772
-    quantity:
-        type: integer
-        format: int32
-        example: 7
-    status:
-        type: string
-        description: Order Status
-        example: approved
-        enum:
-            - placed
-            - approved
-            - delivered
-    complete:
+        description: Includes rum
+    rocks:
         type: boolean
-    couponCode:
+        description: Mocktail served on rocks
+    glass:
         type: string
-        example: "SUMMERSALE"
-xml:
-    name: order
+        description: Shape of glass
+        enum: ["Highball", "Collins"]
+    fruit:
+        type: array
+        items:
+            type: string
+            enum: ["Orange Slices", "Strawberries", "Lime"]
+    herbs:
+        type: array
+        items:
+            type: string
+            enum: ["Mint", "Marijuana"]
+
+
+oneOf:
+    - type: object
+      properties:
+        id:
+            type: string
+            description: Drink ID
+        spirit:
+            type: string
+            description: Non-alcoholic spirit in the drink
+            example: "Little Saints St. Ember"
+        rocks:
+            type: boolean
+            description: Mocktail served on rocks
+        glass:
+            type: string
+            description: Shape of glass
+            enum:
+                - "Martini"
+                - "Highball"
+                - "Collins"
+                - "Rocks"
+
+oneOf:
+    - type: object
+      properties:
+        id:
+            type: string
+            description: Drink ID
+        spirit:
+            type: string
+            description: Non-alcoholic spirit in the drink
+            example: "Little Saints St. Ember"
+        rocks:
+            type: boolean
+            description: Mocktail served on rocks
+        glass:
+            type: string
+            description: Shape of glass
+            enum:
+                - "Martini"
+                - "Highball"
+                - "Collins"
+                - "Rocks"
 
 

@@ -1,6 +1,9 @@
 package shared
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -121,14 +124,14 @@ func TestMatchRequestedPath(t *testing.T) {
 	assert.True(t, len(anchors2) == 2)
 
 	assert.False(t, matched3, "Path %s should NOT match", reqPath3)
-	assert.True(t, len(anchors3) == 2)
+	assert.True(t, len(anchors3) == 0)
 	assert.Equal(t, "Step 1", step2.StepName, "Step should match for path %s", reqPath2)
 	assert.Nil(t, step3, "Step should be nil for path %s", reqPath3)
 }
 
 // Test for extractVariableFromPath
 // ! variable should always exist in the path
-func TestExtractVariableFromPath(t *testing.T) {
+func TestInjectVariableFromPath(t *testing.T) {
 	stepMetadata := &StepMetadata{
 		PathName: "/users/{id}/hello/ok",
 	}
@@ -142,11 +145,12 @@ func TestExtractVariableFromPath(t *testing.T) {
 	}
 
 	// Call extractVariableFromPath method
-	variable, err := paramProperty.extractVariableFromPath(req, stepMetadata.PathName)
+	message, err := paramProperty.injectVariableIntoPath(req, stepMetadata.PathName, "30000")
 
 	// Assertions
 	assert.NoError(t, err, "Expected no error")
-	assert.Equal(t, "123", variable.(string))
+	assert.NotEqual(t, nil, message)
+	assert.Equal(t, req.URL.Path, `/users/30000/hello/ok`)
 }
 func TestExtractVariableFromPathSameName(t *testing.T) {
 	stepMetadata := &StepMetadata{
@@ -167,6 +171,78 @@ func TestExtractVariableFromPathSameName(t *testing.T) {
 	// Assertions
 	assert.Error(t, err, "More than one variable 'id' is set in the path, using first one")
 	assert.Equal(t, "123", variable.(string))
+}
+
+func TestInjectVariableIntoHeaders(t *testing.T) {
+	// Test case 1: When the query parameter is present in the request
+	t.Run("Single", func(t *testing.T) {
+		// Create a new HTTP request with query parameters
+		req, err := http.NewRequest("GET", "http://localhost:8080/?name=John&age=30", nil)
+
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer <your-token>")
+		req.Header.Set("User-Agent", "Go-http-client/1.1")
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+		req.Header.Set("If-None-Match", `"etag-value"`)
+		req.Header.Set("Referer", "https://example.com")
+
+		paramProperty := &ParameterProperty{
+			Property: "Referer",
+		}
+
+		const newHeader = "New Header"
+		_, err = paramProperty.injectVariableIntoHeader(req, newHeader)
+
+		header := req.Header.Get("Referer")
+
+		assert.NoError(t, err, "Expected no error injecting")
+		assert.Equal(t, newHeader, header)
+	})
+}
+
+func TestInjectVariableIntoQuery(t *testing.T) {
+	// Test case 1: When the query parameter is present in the request
+	t.Run("Single number", func(t *testing.T) {
+		// Create a new HTTP request with query parameters
+		req, err := http.NewRequest("GET", "http://localhost:8080/?name=John&age=30", nil)
+
+		// Create a ParameterProperty instance for the 'name' query parameter
+		paramProperty := &ParameterProperty{
+			Property: "name",
+		}
+
+		// Call the function that extracts the query parameter
+		_, err = paramProperty.injectVariableIntoQuery(req, "David")
+
+		// Assert that no error occurred and the result is the expected query value
+		assert.NoError(t, err, "Expected no error injecting")
+	})
+
+	// Test case 2: When the query parameter is not present in the request
+	t.Run("Array", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "http://localhost:8080/?age=30", nil)
+
+		paramProperty := &ParameterProperty{
+			Property: "age",
+		}
+
+		_, err := paramProperty.injectVariableIntoQuery(req, []int{1, 2, 3})
+
+		assert.NoError(t, err, "Expected no error injecting")
+		assert.Equal(t, req.URL.RawQuery, "age=1&age=2&age=3")
+
+		req, _ = http.NewRequest("GET", "http://localhost:8080/?name=Hello", nil)
+
+		paramProperty = &ParameterProperty{
+			Property: "name",
+		}
+
+		_, err = paramProperty.injectVariableIntoQuery(req, []string{"David", "Eric", "Michael"})
+
+		assert.NoError(t, err, "Expected no error injecting")
+		assert.Equal(t, req.URL.RawQuery, "name=David&name=Eric&name=Michael")
+	})
 }
 
 // & I love AI
@@ -254,6 +330,51 @@ func TestExtractVariableFromHeader(t *testing.T) {
 	})
 }
 
+// Helper function to create a new HTTP request for testing
+func createTestRequest(body string) (*http.Request, error) {
+	return http.NewRequest("POST", "https://example.com/api", bytes.NewBuffer([]byte(body)))
+}
+
+// Unit test for InjectAnchorIntoRequstBody
+func TestInjectAnchorIntoRequstBody(t *testing.T) {
+	// Initial JSON request body
+	originalBody := `{
+		"id": 123
+	}`
+
+	// Expected result after injection (adding properties.id)
+	expectedBody := `{
+		"id": 456
+	}`
+
+	// Create a mock HTTP request
+	req, err := createTestRequest(originalBody)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	// Create the RequestBodyProperty instance with the target property to inject
+	rbp := &RequestBodyProperty{
+		Property: "properties.id", // We are injecting into "properties.id"
+	}
+
+	// Value to inject into the target property
+	expressionValue := 456
+
+	// Call InjectAnchorIntoRequstBody to modify the request body
+	_, err = rbp.InjectAnchorIntoRequstBody(req, expressionValue)
+	assert.Nil(t, err)
+
+	// Read the updated request body
+	updatedBody, err := io.ReadAll(req.Body)
+	if err != nil {
+		t.Fatalf("Failed to read updated body: %v", err)
+	}
+
+	// Compare the updated body with the expected result
+	assert.JSONEq(t, expectedBody, string(updatedBody))
+}
+
 // Unit test
 func TestPopulateAnchor(t *testing.T) {
 
@@ -268,7 +389,7 @@ func TestPopulateAnchor(t *testing.T) {
 			Property: "id",
 		}
 
-		variable, msg, err := paramProperty.PopulateAnchor(req, "", nil)
+		variable, msg, err := paramProperty.PopulateAnchor(req, "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"123"}, variable)
@@ -285,7 +406,7 @@ func TestPopulateAnchor(t *testing.T) {
 			Property: "id",
 		}
 
-		variable, msg, err := paramProperty.PopulateAnchor(req, "users/{id}/hello", nil)
+		variable, msg, err := paramProperty.PopulateAnchor(req, "users/{id}/hello")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "123", variable) // In this mock, we are returning a hardcoded path variable
@@ -303,7 +424,7 @@ func TestPopulateAnchor(t *testing.T) {
 			Property: "X-Auth-Token",
 		}
 
-		variable, msg, err := paramProperty.PopulateAnchor(req, "", nil)
+		variable, msg, err := paramProperty.PopulateAnchor(req, "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"123456"}, variable)
@@ -320,7 +441,7 @@ func TestPopulateAnchor(t *testing.T) {
 			Property: "session_id",
 		}
 
-		variable, msg, err := paramProperty.PopulateAnchor(req, "", nil)
+		variable, msg, err := paramProperty.PopulateAnchor(req, "")
 
 		assert.Error(t, err)
 		assert.Nil(t, variable)
@@ -403,15 +524,14 @@ func TestExecuteJS(t *testing.T) {
 	assert.Equal(t, "[{\"first\":6},{\"first\":7},{\"first\":8}]", anchor.ExpressionValue)
 }
 
-// Test case for InjectAnchorValueIntoMock
 func TestInjectAnchorValueIntoMock(t *testing.T) {
 	// Create a mock Anchor with ExpressionValue
 	anchor := &Anchor{
 		Expression: "myExpression",
 		RequestBodyProperty: &RequestBodyProperty{
-			Property: "$properties.testProperty",
+			Property: "properties.testProperty",
 		},
-		ExpressionValue: []byte(`"new_value"`), // The value to insert into the mock
+		ExpressionValue: `"new_value"`, // The value to insert into the mock
 		StepID:          "step1",
 	}
 
@@ -424,6 +544,105 @@ func TestInjectAnchorValueIntoMock(t *testing.T) {
 	updatedMock, _, err := anchor.InjectAnchorValueIntoMock(mock)
 
 	assert.Equal(t, nil, err)
+	fmt.Println(string(updatedMock))
 
 	assert.True(t, strings.Contains(string(updatedMock), `"testProperty": "new_value"`))
+}
+
+// all that matters is that
+// I need to get all anchors that are sending to this one.
+func TestHandleStepResponse(t *testing.T) {
+
+	// Anchor 1 setup
+	sender := &Anchor{
+		ID:            "sender",
+		ReferenceType: ResponseBody,
+		ParameterProperty: &ParameterProperty{
+			Property: "query.name",
+		},
+		ExpressionValue: "[1, 2, 3]",
+		SenderPipes:     []string{"pipe1"},
+	}
+	sender1 := &Anchor{
+		ID: "sender1",
+		RequestBodyProperty: &RequestBodyProperty{
+			Property: "properties.name",
+		},
+		ExpressionValue: 5,
+		SenderPipes:     []string{"pipe2"},
+	}
+	sender2 := &Anchor{
+		ID:              "sender2",
+		ExpressionValue: "20",
+		ResponseBodyProperty: &ResponseBodyProperty{
+			Property: "properties.id",
+		},
+		SenderPipes: []string{"pipe3"},
+	}
+
+	receiverAnchor := &Anchor{
+		ID:            "anchor2",
+		ReferenceType: ResponseBody,
+		// 1 + 5 + 20 + 5
+		Expression: "$sender-query.name.map((val) => val + $sender1-properties.name)[0] + $sender2-properties.id + $anchor2-properties.otherName",
+		ResponseBodyProperty: &ResponseBodyProperty{
+			Property: "properties.otherName",
+		},
+		ReceiverPipes: []string{"pipe2", "pipe1", "pipe3"},
+	}
+
+	// every single sender has to have this one receiver as output
+
+	pipe1 := &Pipe{
+		ID:      "pipe1",
+		Input:   sender,
+		Outputs: []*Anchor{receiverAnchor},
+	}
+
+	pipe2 := &Pipe{
+		ID:      "pipe2",
+		Input:   sender1,
+		Outputs: []*Anchor{receiverAnchor},
+	}
+
+	pipe3 := &Pipe{
+		ID:      "pipe3",
+		Input:   sender2,
+		Outputs: []*Anchor{receiverAnchor},
+	}
+
+	// a
+
+	// Mockboard setup
+	mockboard := Mockboard{
+		WorkflowMetadata: make(map[string]*WorkflowMetadata),
+		DocModel:         nil, // You can set this to any document model if needed
+	}
+
+	// Fill the Mockboard with Pipes
+	mockboard.WorkflowMetadata["workflow1"] = &WorkflowMetadata{
+		IsActivated:   true,
+		StepMetadatas: map[string]*StepMetadata{},
+		Pipes: map[string]*Pipe{
+			"pipe1": pipe1,
+			"pipe2": pipe2,
+			"pipe3": pipe3,
+		},
+	}
+
+	// Test mock (initial value)
+	mock := []byte(`{
+		"testProperty": "initialValue",
+		"paramProperty": "initialParam"
+		"otherName": 5 
+	}`)
+
+	// Call the handleStepResponse function
+	resultMock, _, errors := mockboard.HandleStepResponse([]*Anchor{receiverAnchor}, mock)
+
+	// Assertions
+	assert.Nil(t, errors)                                       // Assert that there are no errors
+	assert.Contains(t, string(resultMock), `"otherName": "31"`) // Assert the second anchor's expression value
+
+	assert.Equal(t, receiverAnchor.ExpressionValue, "31")
 }

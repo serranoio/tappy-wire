@@ -26,3 +26,7 @@ Assume all responses have defined httpMethods
 ## Optimizations
 
 - creating rolodex at every media type
+
+## AI Notes
+
+Unit testing is amazing with AI. I can definitely speed up the process by giving the AI the context it needs

@@ -22,7 +22,7 @@ export default css`
     border-bottom-left-radius: 5px;
     border-top-left-radius: 5px;
     /* border-top-right-radius: 5px; */
-    height: 9rem;
+    height: 11rem;
     width: 38rem;
   }
 

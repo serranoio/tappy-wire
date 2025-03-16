@@ -172,14 +172,14 @@ func (ws *WiretapService) handleMockRequest(
 	anchors, foundAnchors := ws.getAllAnchorsOnThisPath(config, request.HttpRequest.URL.Path)
 
 	if foundAnchors {
-		ws.handleStepRequest(request.HttpRequest, config, anchors)
+		config.Mockboard.HandleStepRequest(request.HttpRequest, anchors)
 	}
 
 	// build a mock based on the request.
 	mock, mockMetadata, mockErr := ws.mockEngine.GenerateResponse(request.HttpRequest)
 
 	if foundAnchors {
-		ws.handleStepResponse(anchors, config, mock)
+		config.Mockboard.HandleStepResponse(anchors, mock)
 	}
 
 	newMock, _ := injectAndSetMockVariables(request.HttpRequest, config, mock)

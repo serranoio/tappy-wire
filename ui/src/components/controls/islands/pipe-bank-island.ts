@@ -23,7 +23,7 @@ export const renderAnchorBadge = (
           fontSize: ".75rem",
         })}
       >
-        ${insertSpaces(reference.getFullProperty())}
+        ${insertSpaces(reference.pathName)}
       </p>
       <sl-badge
         @click=${() => {
@@ -35,7 +35,7 @@ export const renderAnchorBadge = (
         }}
         class="anchor-badge-id"
       >
-        ${reference.getProperty()}
+        ${reference.getFullProperty()}
       </sl-badge>
     </sl-tooltip>
   `;

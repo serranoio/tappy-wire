@@ -5,6 +5,7 @@ import {
   deepSnakeToCamel,
   httpMethods,
   IO,
+  insertSpaces,
 } from "./traffic-control-utils";
 import { MediaType, Operation, PathItem, ResponseCode } from "./paths";
 import { relativeTimeThreshold } from "moment";
@@ -400,7 +401,7 @@ export class ResponseBodyProperty {
   }
 
   getProperty() {
-    return `$${this.property}`;
+    return `${this.property}`;
   }
 
   normalize() {
@@ -439,7 +440,7 @@ export class RequestBodyProperty {
   }
 
   getProperty() {
-    return `$${this.property}`;
+    return `${this.property}`;
   }
 
   normalize() {
@@ -465,7 +466,7 @@ export class ParameterProperty {
   }
 
   getProperty() {
-    return `$${this.type}.${this.property}`;
+    return `${this.type}.${this.property}`;
   }
 
   normalize() {
@@ -481,6 +482,7 @@ type Property = ResponseBodyProperty | RequestBodyProperty | ParameterProperty;
 export interface AnchorReference {
   id: string; // anchor id
   property: string; // anchor property
+  pathName: string; // human readable stepID
 }
 
 export class Anchor {
@@ -533,7 +535,18 @@ export class Anchor {
     anchor.receiverPipes = value?.receiverpipes;
     anchor.senderPipes = value?.senderpipes;
     anchor.stepID = value?.stepid;
-    anchor.anchorReferences = value?.anchorreferences;
+    if (value.anchorreferences) {
+      anchor.anchorReferences = value.anchorreferences.map((ar) => {
+        return {
+          id: ar.id,
+          property: ar.property,
+          pathName: ar.pathname,
+        };
+      });
+    } else {
+      anchor.anchorReferences = [];
+    }
+
     anchor.referenceType = value.referencetype;
     switch (value.referencetype as AnchorType) {
       case "request-body":
@@ -558,19 +571,34 @@ export class Anchor {
   }
   renderInputExpressionBox() {
     return this.getInputExpression().map((ar: AnchorReference) => {
-      return html`<sl-badge>${ar.property}</sl-badge>`;
+      return html`
+        <sl-tooltip>
+          <p slot="content">${insertSpaces(ar.pathName)}</p>
+          <sl-badge>${ar.property}</sl-badge>
+        </sl-tooltip>
+      `;
     });
   }
 
   // get all receiver pipe's properties.
   getInputExpression() {
     if (this.anchorReferences.length === 0) {
-      return [{ id: this.id, property: this.getProperty() }];
+      return [
+        {
+          id: this.id,
+          property: this.getFullProperty(),
+          pathName: this.pathName,
+        },
+      ];
     }
 
     return [
       ...this.anchorReferences,
-      { id: this.id, property: this.getProperty() },
+      {
+        id: this.id,
+        property: this.getFullProperty(),
+        pathName: this.pathName,
+      },
     ];
   }
 
@@ -608,7 +636,7 @@ export class Anchor {
     const pipe = new Pipe(this.referenceType, this.parameterProperty);
     this.addAnchorPipe(pipe);
 
-    this.expression = this.getExpression();
+    this.expression = this.getFullProperty();
 
     // overwright input
     pipe.input = this;
@@ -628,11 +656,11 @@ export class Anchor {
   }
 
   getExpression() {
-    return this.getProperty();
+    return this.getFullProperty();
   }
 
   getFullProperty() {
-    return `${this.pathName} | ${this.pathMethod} | ${this.getProperty()}`;
+    return `$${this.id}-${this.getProperty()}`;
   }
 
   addExtraFields(value) {
@@ -781,7 +809,8 @@ export class Pipe {
     // why not just property? that won't work. However, render it as
     reference.addAnchorReference({
       id: this.input.id,
-      property: this.input.getProperty(),
+      property: this.input.getFullProperty(),
+      pathName: this.input.pathName,
     });
 
     reference.expression = this.input.getExpression();

@@ -20,7 +20,6 @@ type WorkflowMetadata struct {
 	WorkflowName  string                 `json:"workflowName"`
 	WorkflowID    string                 `json:"workflowID"`
 	IsActivated   bool                   `json:"isActivated"`
-	Variables     []*shared.Variable     `json:"variables"`
 	StepMetadatas []*shared.StepMetadata `json:"stepMetadatas"`
 	Pipes         []*shared.Pipe         `json:"pipes"`
 	Summary       string                 `json:"summary"`
@@ -40,17 +39,10 @@ type WorkflowPayload struct {
 }
 
 func NewWorkflowMetadataFromPayload(workflowMetadata WorkflowMetadata) *shared.WorkflowMetadata {
-	variablesMap := make(map[string]*shared.Variable)
-
-	for _, variable := range workflowMetadata.Variables {
-		variablesMap[variable.ID] = variable
-	}
-
 	return &shared.WorkflowMetadata{
 		WorkflowID:    workflowMetadata.WorkflowID,
 		IsActivated:   workflowMetadata.IsActivated,
 		StepMetadatas: formStepMap(workflowMetadata.StepMetadatas),
-		Variables:     variablesMap,
 		Summary:       workflowMetadata.Summary,
 		Description:   workflowMetadata.Description,
 		WorkflowName:  workflowMetadata.WorkflowName,
@@ -120,12 +112,6 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 	ss.mockboard.WorkflowMetadata[id].Pipes = make(map[string]*shared.Pipe)
 	for _, pipe := range workflowPayload.WorkflowMetadata.Pipes {
 		ss.mockboard.WorkflowMetadata[id].Pipes[pipe.ID] = pipe
-	}
-
-	// create new map with new variables, lol. fuck it.
-	ss.mockboard.WorkflowMetadata[id].Variables = make(map[string]*shared.Variable)
-	for _, variable := range workflowPayload.WorkflowMetadata.Variables {
-		ss.mockboard.WorkflowMetadata[id].Variables[variable.ID] = variable
 	}
 
 	ss.mockboard.WorkflowMetadata[id].StepMetadatas = make(map[string]*shared.StepMetadata)

@@ -361,4 +361,73 @@ func TestVariables(t *testing.T) {
 
 func TestMatchPath() {
 
+	// Anchor 1 setup
+	anchor1 := &shared.Anchor{
+		ID:              "anchor1",
+		ReferenceType:   shared.ResponseBody,
+		Expression:      "$properties.testProperty",
+		ExpressionValue: []byte(`"newValue"`),
+		ReceiverPipes:   []string{"pipe1"},
+	}
+
+	// Anchor 2 setup
+	anchor2 := &shared.Anchor{
+		ID:              "anchor2",
+		ReferenceType:   shared.Parameter,
+		Expression:      "$properties.paramProperty",
+		ExpressionValue: []byte(`"anotherValue"`),
+		ReceiverPipes:   []string{"pipe2"},
+	}
+
+	// Pipe 1 setup for anchor1
+	pipe1 := &shared.Pipe{
+		ID:      "pipe1",
+		Input:   anchor1,
+		Outputs: []*shared.Anchor{anchor2},
+	}
+
+	// Pipe 2 setup for anchor2
+	pipe2 := &shared.Pipe{
+		ID:      "pipe2",
+		Input:   anchor2,
+		Outputs: []*shared.Anchor{anchor1},
+	}
+
+	// Mockboard setup
+	mockboard := &shared.Mockboard{
+		WorkflowMetadata: make(map[string]*shared.WorkflowMetadata),
+		DocModel:         nil, // You can set this to any document model if needed
+	}
+
+	// Fill the Mockboard with Pipes
+	mockboard.WorkflowMetadata["workflow1"] = &shared.WorkflowMetadata{
+		StepMetadatas: map[string]*shared.StepMetadata{},
+		Pipes: map[string]*shared.Pipe{
+			"pipe1": pipe1,
+			"pipe2": pipe2,
+		},
+	}
+
+	// Test mock (initial value)
+	mock := []byte(`{
+		"testProperty": "initialValue",
+		"paramProperty": "initialParam"
+	}`)
+
+	// Initialize WiretapService
+	service := &WiretapService{}
+
+	// Call the handleStepResponse function
+	resultMock, messages, errors := service.handleStepResponse([]*shared.Anchor{anchor1, anchor2}, mockboard, mock)
+
+	// Assertions
+	assert.Nil(t, errors)                                                     // Assert that there are no errors
+	assert.NotNil(t, resultMock)                                              // Ensure the mock is updated
+	assert.Contains(t, string(resultMock), `"testProperty": "newValue"`)      // Assert the mock was updated with the anchor expression values
+	assert.Contains(t, string(resultMock), `"paramProperty": "anotherValue"`) // Assert the second anchor's expression value
+
+	assert.Len(t, messages, 2)                                                                           // Assert that two messages were generated
+	assert.Equal(t, "successfully inserted newValue at property testProperty", messages[0].message)      // Assert message content for anchor1
+	assert.Equal(t, "successfully inserted anotherValue at property paramProperty", messages[1].message) // Assert message content for anchor2
+
 }
