@@ -7,6 +7,15 @@ export default css`
     box-sizing: border-box;
   }
 
+  .glow {
+    box-shadow: 0 0 10px 6px var(--primary-color) !important;
+  }
+
+  .arazzo-step-container {
+    transition: all 0.5s;
+    box-shadow: 0 -2px 10px 0.1px var(--primary-color);
+  }
+
   .get-color::part(base) {
     background-color: var(--get);
   }

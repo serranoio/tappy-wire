@@ -4,9 +4,10 @@
 package daemon
 
 import (
+	"net/http"
+
 	"github.com/pb33f/libopenapi-validator/errors"
 	"github.com/pb33f/ranch/model"
-	"net/http"
 )
 
 func (ws *WiretapService) ValidateResponse(

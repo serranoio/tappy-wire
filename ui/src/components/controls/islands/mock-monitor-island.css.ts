@@ -27,4 +27,61 @@ export default css`
     transform: translateY(-100%);
     left: 5px;
   }
+
+  #mock-monitor-list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: scroll;
+    gap: 5px;
+  }
+
+  .mock-transaction {
+    border-bottom: 1px dashed var(--primary-color);
+    padding: 10px;
+  }
+  .mock-transaction-header {
+    font-size: 0.75rem;
+    box-shadow: 0 -4px 5px 5px var(--primary-color);
+    display: inline;
+  }
+
+  .mock-transaction-subheader {
+    font-size: 0.75rem;
+    box-shadow: 0 -4px 5px 5px var(--primary-color);
+  }
+
+  .titles-div {
+    display: flex;
+    gap: 16px;
+  }
+
+  .subtitles {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  h5 {
+    border-bottom: 1px dashed var(--secondary-color);
+  }
+
+  .icon-box {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+  }
+  sl-icon[name="bug"] {
+    /* color: green; */
+    color: var(--error-color);
+  }
+
+  sl-icon[name="chat-left"] {
+    /* color: green; */
+    color: var(--put);
+  }
+  sl-icon[name="link"] {
+    /* color: green; */
+    color: var(--patch);
+  }
 `;

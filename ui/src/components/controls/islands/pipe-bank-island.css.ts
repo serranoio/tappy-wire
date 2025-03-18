@@ -59,30 +59,30 @@ export default css`
     height: 96vh;
     width: 96vw;
   }
-  /* 
+
   .selected-pipe line:first-child {
-    stroke: #111 !important;
+    /* stroke: #111 !important; */
   }
 
   .selected-pipe line:last-child {
-    stroke: #ccc !important;
+    /* stroke: #ccc !important; */
   }
 
   .pipe-line line:first-child {
     stroke-width: 7px;
-    stroke: #888;
+    stroke: #94a3b8;
   }
 
   .pipe-line line:last-child {
-    stroke-width: 3px;
-    stroke: #333;
-    animation: flow 20s linear infinite;
-    stroke-dasharray: 30 30; 
-    stroke-dashoffset: 0; 
-  } */
+    stroke-width: 2px;
+    stroke: #334155;
+    animation: flow 30s linear infinite;
+    stroke-dasharray: 30 30;
+    stroke-dashoffset: 0;
+  }
 
   .pipe-line line {
-    stroke-width: 8px;
+    stroke-width: 6px;
   }
 
   @keyframes flow {

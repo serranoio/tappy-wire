@@ -272,4 +272,16 @@ export default css`
   .path-item p {
     width: 100%;
   }
+
+  .moving-data {
+    position: absolute;
+    padding: 1px;
+    color: black;
+    font-size: 10px;
+    background-color: var(--secondary-color);
+    border-radius: 10px;
+    transform: translate(-50%, -50%);
+    transition: all 20s;
+    z-index: 99;
+  }
 `;

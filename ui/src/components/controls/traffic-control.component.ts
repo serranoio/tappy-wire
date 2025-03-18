@@ -3,7 +3,7 @@ import {
   html,
   PropertyValueMap,
   TemplateResult,
-  getCompatibleStyle,
+  render,
 } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import trafficControlCss from "./traffic-control.css";
@@ -20,43 +20,40 @@ import {
   WorkflowMetadata,
 } from "@/model/traffic-control";
 import { GetBus } from "@pb33f/ranch";
-import { WiretapReportChannel } from "@/model/constants";
+import { WiretapChannel, WiretapReportChannel } from "@/model/constants";
 import { GetBagManager } from "@pb33f/saddlebag";
 import localforage from "localforage";
-import { SlDrawer, SlMenuItem } from "@shoelace-style/shoelace";
-import { Operation, PathItem } from "@/model/paths";
+import { SlDrawer } from "@shoelace-style/shoelace";
+import { PathItem } from "@/model/paths";
 import {
-  SelectingPipeEvent,
   SelectingAnchorEvent,
+  SendTransactionToMockboard,
   UpdateStepMetadataEvent,
   UpdateStepMetadataType,
-  httpMethods,
-  insertSpaces,
-  isObjectEmpty,
   normalizeMap,
 } from "@/model/traffic-control-utils";
-import { styleMap } from "lit/directives/style-map.js";
-import { ArazzoStep } from "./step/step.component";
 import {
-  drawPipeLine,
   drawPipeLineWithCoords,
+  findMiddle,
   getAllAnchorBadges,
   getIdsFromAnchorBadges,
   renderAllPipes,
 } from "./pipe/anchor-badge";
-import {
-  renderName,
-  renderStatusIndicator,
-  renderWorkflowIsland,
-} from "./islands/workflow-island";
+import { renderWorkflowIsland } from "./islands/workflow-island";
 import workflowIslandCss from "./islands/workflow-island.css";
 import { renderPathsIsland } from "./islands/paths-island";
 import pathsIslandCss from "./islands/paths-island.css";
-import { renderMockMonitorIsland } from "./islands/mock-monitor-island";
+import {
+  constructMockRequest,
+  renderMockMonitorIsland,
+} from "./islands/mock-monitor-island";
 import { renderProxyMonitorIsland } from "./islands/proxy-monitor-island";
 import { renderPipeBankIsland, selectPipe } from "./islands/pipe-bank-island";
 import pipeBankIslandCss from "./islands/pipe-bank-island.css";
 import mockMonitorIslandCss from "./islands/mock-monitor-island.css";
+import { HttpTransaction } from "@/model/http_transaction";
+import { Message } from "@/model/message";
+import { styleMap } from "lit/directives/style-map.js";
 
 @customElement("traffic-control")
 export class TrafficControlComponent extends LitElement {
@@ -115,10 +112,9 @@ export class TrafficControlComponent extends LitElement {
   _controlsStore: any;
   @state()
   _filtersStore: any;
+
   @state()
-  _wiretapControlsChannel: any;
-  @state()
-  _wiretapReportChannel: any;
+  _wiretapChannel: any;
   @state()
   _wiretapControlsSubscription: any;
   @state()
@@ -154,6 +150,14 @@ export class TrafficControlComponent extends LitElement {
   @state()
   mouseMoveEventListener: null | Function = null;
 
+  @query("#mock-monitor-list")
+  mockMonitorList;
+
+  @state()
+  mocks: any = [];
+
+  @query("#fly-container") flyContainer;
+
   populateStateFromMockboard() {
     this.workflows = normalizeMap(this.mockBoard.workflowMetadatas).map(
       (value: WorkflowMetadata) => {
@@ -173,7 +177,7 @@ export class TrafficControlComponent extends LitElement {
     // get bus.
     this._bus = GetBus();
     this._storeManager = GetBagManager();
-    this._wiretapReportChannel = this._bus.getChannel(WiretapReportChannel);
+    this._wiretapChannel = this._bus.getChannel(WiretapChannel);
     this._controlsStore = this._storeManager.getBag(TrafficControlStore);
 
     this._controlsStore.subscribe(MockBoardKey, (mb) => {
@@ -217,6 +221,83 @@ export class TrafficControlComponent extends LitElement {
 
     // this.mouseMoveEventListener = this.moveMouse.bind(this);
     document.addEventListener("mousemove", this.moveMouse.bind(this));
+
+    document.addEventListener(
+      SendTransactionToMockboard,
+      this.listenToTransaction.bind(this)
+    );
+  }
+
+  listenToTransaction(e: CustomEvent<HttpTransaction>) {
+    const transaction = e.detail;
+
+    const { isMock, messages, errors } = constructMockRequest(
+      transaction,
+      this
+    );
+    if (!isMock) {
+      return;
+    }
+
+    const am = Message.FindMessagesWithAnchors(messages);
+    let foundReceiver: HTMLElement[] = [];
+    let foundSender: HTMLElement[] = [];
+    am.forEach((anchorMessage: Message) => {
+      getAllAnchorBadges(this.renderRoot).forEach(
+        (anchorBadge: HTMLElement) => {
+          const ids = getIdsFromAnchorBadges(anchorBadge);
+          // find two anchors
+          ids.forEach((id: string) => {
+            if (id === anchorMessage.receiverAnchor.id) {
+              foundReceiver.push(anchorBadge);
+            }
+            if (id === anchorMessage.senderAnchor.id) {
+              foundSender.push(anchorBadge);
+            }
+          });
+        }
+      );
+    });
+
+    if (foundReceiver.length > 0) {
+      foundReceiver.forEach((receiver: HTMLElement, num: number) => {
+        const receiverRect = receiver.getBoundingClientRect();
+        const senderRect = foundSender[num].getBoundingClientRect();
+        const sl = senderRect.x + senderRect.width / 2;
+        const st = senderRect.y + senderRect.height / 2;
+
+        const rl = receiverRect.x + receiverRect.width / 2;
+        const rt = receiverRect.y + receiverRect.height / 2;
+
+        let styles = {
+          left: `${rl}px`,
+          top: `${rt}px`,
+        };
+
+        const keyframes = [
+          { left: `${sl}px` }, // Starting position
+          { top: `${st}px` }, // Starting position
+        ];
+
+        // Define the animation options
+        const options = {
+          duration: 5000, // Duration of 5 seconds
+          easing: "ease-in-out", // Smooth easing for the animation
+        };
+
+        const span = document.createElement("span");
+        span.classList.add("moving-data");
+        span.textContent = am[num].senderAnchor.value;
+        span.style.left = styles.left;
+        span.style.top = styles.top;
+        this.flyContainer.appendChild(span);
+        span.animate(keyframes, options);
+
+        setTimeout(() => {
+          span.remove();
+        }, 5000);
+      });
+    }
   }
 
   moveMouse(e) {
@@ -502,6 +583,7 @@ export class TrafficControlComponent extends LitElement {
         }}
       >
       </sl-icon-button>
+      <div id="fly-container"></div>
     `;
   }
 }

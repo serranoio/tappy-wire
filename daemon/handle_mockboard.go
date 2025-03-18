@@ -9,13 +9,13 @@ import (
 // or let's grab the anchors on the step...
 // if we have anchors on the step, we will see what we need
 
-func (ws *WiretapService) getAllAnchorsOnThisPath(config *shared.WiretapConfiguration, path string) ([]*shared.Anchor, bool) {
+func (ws *WiretapService) getAllAnchorsOnThisPath(config *shared.WiretapConfiguration, path string) (string, []*shared.Anchor, bool) {
 	for _, workflow := range config.Mockboard.GetActivatedWorkflows() {
-		_, anchors, foundStep := workflow.MatchRequestedPath(path)
+		stepMetadata, anchors, foundStep := workflow.MatchRequestedPath(path)
 		if foundStep {
-			return anchors, true
+			return *stepMetadata.ID, anchors, true
 		}
 	}
 
-	return nil, false
+	return "", nil, false
 }

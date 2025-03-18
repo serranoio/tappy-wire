@@ -44,7 +44,7 @@ export const renderPathsIsland = (thisComponent: TrafficControlComponent) => {
                         "Please select a workflow!",
                         "warning",
                         "info-circle",
-                        100000
+                        3000
                       );
 
                       return;

@@ -10,7 +10,7 @@ export const getIdsFromAnchorBadges = (anchorBadge: HTMLElement): string[] => {
   return ids;
 };
 
-const findMiddle = (rect, value, measure) => {
+export const findMiddle = (rect, value, measure) => {
   return rect[value] - rect[measure] / 2;
 };
 
@@ -28,34 +28,42 @@ export const drawPipeLineWithCoords = (
       width="1000"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="red">
-            <animate
-              attributeName="stop-color"
-              values="#333;#444;#777"
-              dur="3s"
-              repeatCount="indefinite"
-            />
-          </stop>
-        </linearGradient>
-      </defs>
+    <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#b0b0b0">
+        <animate
+          attributeName="stop-color"
+          values="#b0b0b0;#808080;#b0b0b0" 
+          dur="4s"
+          keyTimes="0; 0.5; 1"
+          repeatCount="indefinite"
+        />
+      </stop>
+      <stop offset="100%" stop-color="#808080">
+        <animate
+          attributeName="stop-color"
+          values="#808080;#b0b0b0;#808080"
+          dur="4s"
+          keyTimes="0; 0.5; 1"
+          repeatCount="indefinite"
+        />
+      </stop>
+    </linearGradient>
+  </defs>
 
-      <line
+        <line
+          x1="${x1}"
+          y1="${y1}"
+          x2="${x2}"
+          y2="${y2}"
+          stroke="url(#flowGradient)"
+        />
+        <line
         x1="${x1}"
         y1="${y1}"
         x2="${x2}"
         y2="${y2}"
-        stroke="url(#flowGradient)"
       />
-      <!-- <line
-        x1="${x1}"
-        y1="${y1}"
-        x2="${x2}"
-        y2="${y2}"
-        fill="url(#flowGradient)"
-      /> -->
-    </svg>
+      </svg>
   `;
 };
 

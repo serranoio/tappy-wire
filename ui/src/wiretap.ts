@@ -52,6 +52,10 @@ import {
 } from "./model/traffic-control";
 import { mock } from "node:test";
 import { PathItem } from "./model/paths";
+import {
+  SendTransactionToMockboard,
+  sendEvent,
+} from "./model/traffic-control-utils";
 
 declare global {
   interface Window {
@@ -356,8 +360,9 @@ export class WiretapComponent extends LitElement {
         console.log("error in backend");
         return;
       }
+      console.log(payload);
 
-      if (payload.payload?.arazzo) {
+      if (payload.payload?.workflow_metadata) {
         // console.log("mockboard request");
         const mockboard = payload?.payload;
         if (mockboard != null) {
@@ -396,6 +401,8 @@ export class WiretapComponent extends LitElement {
       const wiretapMessage = msg.payload as HttpTransaction;
       const existingTransaction: HttpTransaction =
         this._httpTransactionStore.get(wiretapMessage.id);
+
+      console.log(msg.payload);
 
       // create a new transaction from the wiretap message.
       const createTransaction = (): HttpTransaction => {
@@ -453,6 +460,12 @@ export class WiretapComponent extends LitElement {
           wiretapMessage.responseValidation;
         this._httpTransactionStore.set(
           existingTransaction.id,
+          existingTransaction
+        );
+
+        sendEvent<HttpTransaction>(
+          this,
+          SendTransactionToMockboard,
           existingTransaction
         );
       } else if (existingTransaction && wiretapMessage.httpRequest) {

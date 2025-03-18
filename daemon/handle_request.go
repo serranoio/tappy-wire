@@ -210,6 +210,8 @@ func (ws *WiretapService) handleHttpRequest(request *model.Request) {
 			}
 		}
 	}
+	request.HttpResponseWriter.Header().Add(WiretapTypeHeader, Proxy)
+
 	config.Logger.Info("[wiretap] request completed", "url", request.HttpRequest.URL.String(), "code", returnedResponse.StatusCode)
 
 	// if there are validation errors, set an error code

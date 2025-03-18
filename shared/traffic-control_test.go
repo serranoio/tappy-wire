@@ -393,7 +393,7 @@ func TestPopulateAnchor(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"123"}, variable)
-		assert.Equal(t, "Successfully extracted $query.id=[123]", msg.message)
+		assert.Equal(t, "Successfully extracted $query.id=[123]", msg.Message)
 	})
 
 	// Test case 2: PATH type
@@ -410,7 +410,7 @@ func TestPopulateAnchor(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, "123", variable) // In this mock, we are returning a hardcoded path variable
-		assert.Equal(t, "Successfully extracted $path.id=123", msg.message)
+		assert.Equal(t, "Successfully extracted $path.id=123", msg.Message)
 	})
 
 	// Test case 3: HEADER type
@@ -428,7 +428,7 @@ func TestPopulateAnchor(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"123456"}, variable)
-		assert.Equal(t, "Successfully extracted $header.X-Auth-Token=[123456]", msg.message)
+		assert.Equal(t, "Successfully extracted $header.X-Auth-Token=[123456]", msg.Message)
 	})
 
 	// Test case 4: COOKIE type (which should return an error)

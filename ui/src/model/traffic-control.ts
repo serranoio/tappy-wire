@@ -20,6 +20,7 @@ export class StepMetadata {
   position: { x: number; y: number };
   operation: Operation;
   pathName: string;
+  isGlowing: boolean;
 
   constructor(operationID: string) {
     this.operationID = operationID;
@@ -29,6 +30,15 @@ export class StepMetadata {
     };
     this.stepName = "";
     this.id = RanchUtils.genShortId(6);
+    this.isGlowing = false;
+  }
+
+  glow() {
+    this.isGlowing = true;
+
+    setTimeout(() => {
+      this.isGlowing = false;
+    }, 5 * 1000);
   }
 
   static NewStepMetadata(sm): StepMetadata {
@@ -686,7 +696,7 @@ export class Anchor {
   }
 
   updateAnchor(workflowID: string, bus: Bus) {
-    const pipeID = this.receiverPipes[0];
+    const pipeID = this.lastSelectedPipe.id;
 
     if (bus?.getClient()?.connected) {
       bus.publish({

@@ -94,6 +94,8 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 
 	tcs.mockboard = mockboard
 
+	tcs.updateState()
+
 	return tcs
 }
 
@@ -101,21 +103,27 @@ func (ss *TrafficControlService) HandleServiceRequest(request *model.Request, co
 	switch request.RequestCommand {
 	case UpdateAnchor:
 		ss.updateAnchor(request, core)
+		writeMockboard(ss.mockboard)
 	case UpdatePipe:
 		ss.updatePipe(request, core)
+		writeMockboard(ss.mockboard)
 	case GetWorkflows:
 		ss.getWorkflows(request, core)
 	case CreateNewWorkflow:
 		ss.createNewWorkflow(request, core)
+		writeMockboard(ss.mockboard)
 	case UpdateWorkflow:
 		ss.updateWorkflow(request, core)
+		writeMockboard(ss.mockboard)
 	case DeleteWorkflow:
 		ss.deleteWorkflow(request, core)
+		writeMockboard(ss.mockboard)
 	case GetAllPaths:
 		ss.getAllPaths(request, core)
 	default:
 		core.HandleUnknownRequest(request)
 	}
+
 }
 
 func (ss *TrafficControlService) updateState() {

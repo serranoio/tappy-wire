@@ -214,48 +214,38 @@ properties:
             enum: ["Mint", "Marijuana"]
 
 
-oneOf:
-    - type: object
-      properties:
-        id:
-            type: string
-            description: Drink ID
-        spirit:
-            type: string
-            description: Non-alcoholic spirit in the drink
-            example: "Little Saints St. Ember"
-        rocks:
-            type: boolean
-            description: Mocktail served on rocks
-        glass:
-            type: string
-            description: Shape of glass
-            enum:
-                - "Martini"
-                - "Highball"
-                - "Collins"
-                - "Rocks"
+type: object
+properties:
+    id:
+        type: string
+        description: Drink ID
+    spirit:
+        type: string
+        description: Non-alcoholic spirit in the drink
+        example: "Little Saints St. Ember"
+    rocks:
+        type: boolean
+        description: Mocktail served on rocks
+    glass:
+        type: string
+        description: Shape of glass
+        enum: ["Martini", "Highball", "Collins", "Rocks"]
 
-oneOf:
-    - type: object
-      properties:
-        id:
-            type: string
-            description: Drink ID
-        spirit:
-            type: string
-            description: Non-alcoholic spirit in the drink
-            example: "Little Saints St. Ember"
-        rocks:
-            type: boolean
-            description: Mocktail served on rocks
-        glass:
-            type: string
-            description: Shape of glass
-            enum:
-                - "Martini"
-                - "Highball"
-                - "Collins"
-                - "Rocks"
+type: object
+properties:
+    id:
+        type: string
+        description: Drink ID
+    spirit:
+        type: string
+        description: Non-alcoholic spirit in the drink
+        example: "Little Saints St. Ember"
+    rocks:
+        type: boolean
+        description: Mocktail served on rocks
+    glass:
+        type: string
+        description: Shape of glass
+        enum: ["Martini", "Highball", "Collins", "Rocks"]
 
 

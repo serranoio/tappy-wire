@@ -81,7 +81,7 @@ func injectValueIntoVariable(variable *shared.Variable) {
 func matchRequestedPathAgainstSchema(compiledRequestPath glob.Glob, pathItems *orderedmap.Map[string, *v3.PathItem], variable *shared.Variable) (*v3.Operation, bool) {
 	for pathItem := pathItems.First(); pathItem != nil; pathItem = pathItem.Next() {
 		if compiledRequestPath.Match(pathItem.Key()) {
-			id := variable.LevelID[1:]
+			id := (*variable.LevelID)[1:]
 			if id == pathItem.Value().Get.OperationId {
 				return pathItem.Value().Get, true
 
@@ -107,31 +107,4 @@ func matchRequestedPathAgainstSchema(compiledRequestPath glob.Glob, pathItems *o
 	}
 
 	return nil, false
-}
-
-func handleVariables(pathItems *orderedmap.Map[string, *v3.PathItem], request *http.Request, config *shared.WiretapConfiguration) ([]byte, error) {
-	mock := []byte("")
-
-	compiledRequestPath := convertPathToGlob(request.URL.Path)
-
-	mockboard := config.Mockboard
-
-	for _, wfm := range mockboard.WorkflowMetadata {
-		if !wfm.IsActivated {
-			continue
-		}
-		for _, variable := range wfm.Variables {
-			matchRequestedPathAgainstSchema(compiledRequestPath, pathItems, variable)
-
-		}
-		// if a variable has this path levelID,
-
-		// for _, sm := range wfm.StepMetadatas {
-
-		// sm.OperationID
-
-		// }
-	}
-
-	return mock, nil
 }

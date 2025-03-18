@@ -113,3 +113,5 @@ export function notify(
   document.body.append(alert);
   return alert.toast();
 }
+
+export const SendTransactionToMockboard = "send-transaction-to-mockboard";

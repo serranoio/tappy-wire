@@ -20,6 +20,7 @@ import {
   normalizeMap,
   sendEvent,
 } from "@/model/traffic-control-utils";
+import { WiretapMatchedPath } from "../islands/mock-monitor-island";
 
 @customElement("arazzo-step")
 export class ArazzoStep extends LitElement {
@@ -42,6 +43,18 @@ export class ArazzoStep extends LitElement {
 
   constructor() {
     super();
+
+    document.addEventListener(
+      WiretapMatchedPath,
+      this.listenToMatchedPath.bind(this)
+    );
+  }
+
+  listenToMatchedPath(e: CustomEvent<string>) {
+    if (this.stepMetadata.id === e.detail) {
+      this.stepMetadata.glow();
+      this.requestUpdate();
+    }
   }
 
   getSLBadges() {
@@ -480,6 +493,12 @@ export class ArazzoStep extends LitElement {
     `;
   }
 
+  handleGlow() {
+    if (this.stepMetadata.isGlowing) {
+      return "glow";
+    }
+  }
+
   render() {
     // console.log(
     //   this.stepMetadata.pathName,
@@ -489,7 +508,7 @@ export class ArazzoStep extends LitElement {
     this.setPosition();
 
     return html`
-      <figure class="arazzo-step-container">
+      <figure class="arazzo-step-container ${this.handleGlow()}">
         ${this.renderHeader()} ${this.renderStepName()} ${this.renderBody()}
       </figure>
     `;

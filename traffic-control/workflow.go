@@ -40,12 +40,12 @@ type WorkflowPayload struct {
 
 func NewWorkflowMetadataFromPayload(workflowMetadata WorkflowMetadata) *shared.WorkflowMetadata {
 	return &shared.WorkflowMetadata{
-		WorkflowID:    workflowMetadata.WorkflowID,
-		IsActivated:   workflowMetadata.IsActivated,
+		WorkflowID:    &workflowMetadata.WorkflowID,
+		IsActivated:   &workflowMetadata.IsActivated,
 		StepMetadatas: formStepMap(workflowMetadata.StepMetadatas),
-		Summary:       workflowMetadata.Summary,
-		Description:   workflowMetadata.Description,
-		WorkflowName:  workflowMetadata.WorkflowName,
+		Summary:       &workflowMetadata.Summary,
+		Description:   &workflowMetadata.Description,
+		WorkflowName:  &workflowMetadata.WorkflowName,
 		Pipes:         make(map[string]*shared.Pipe),
 	}
 
@@ -116,13 +116,13 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 
 	ss.mockboard.WorkflowMetadata[id].StepMetadatas = make(map[string]*shared.StepMetadata)
 	for _, stepMetadata := range workflowPayload.WorkflowMetadata.StepMetadatas {
-		ss.mockboard.WorkflowMetadata[id].StepMetadatas[stepMetadata.ID] = stepMetadata
+		ss.mockboard.WorkflowMetadata[id].StepMetadatas[*stepMetadata.ID] = stepMetadata
 	}
 
-	ss.mockboard.WorkflowMetadata[id].IsActivated = workflowPayload.WorkflowMetadata.IsActivated
-	ss.mockboard.WorkflowMetadata[id].Description = workflowPayload.WorkflowMetadata.Description
-	ss.mockboard.WorkflowMetadata[id].Summary = workflowPayload.WorkflowMetadata.Summary
-	ss.mockboard.WorkflowMetadata[id].WorkflowName = workflowPayload.WorkflowMetadata.WorkflowName
+	ss.mockboard.WorkflowMetadata[id].IsActivated = &workflowPayload.WorkflowMetadata.IsActivated
+	ss.mockboard.WorkflowMetadata[id].Description = &workflowPayload.WorkflowMetadata.Description
+	ss.mockboard.WorkflowMetadata[id].Summary = &workflowPayload.WorkflowMetadata.Summary
+	ss.mockboard.WorkflowMetadata[id].WorkflowName = &workflowPayload.WorkflowMetadata.WorkflowName
 	ss.mutex.Unlock()
 
 	ss.updateState()

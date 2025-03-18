@@ -16,29 +16,17 @@ type Position struct {
 }
 
 type StepMetadata struct {
-	ID          string   `json:"id"`
-	Description string   `json:"description"`
-	StepName    string   `json:"stepName"`
-	OperationID string   `json:"operationID"`
+	ID          *string  `json:"id"`
+	Description *string  `json:"description"`
+	StepName    *string  `json:"stepName"`
+	OperationID *string  `json:"operationID"`
 	Position    Position `json:"position"`
-	PathName    string   `json:"pathName"`
+	PathName    *string  `json:"pathName"`
 }
 
 func (sm *StepMetadata) getOperation(doc *v3.Document) *v3.Operation {
 
 	return nil
-}
-
-type MessageAnchor struct {
-	ID    string
-	Value interface{}
-}
-
-// in a message, I want to say that an anchor has been populated
-type Message struct {
-	message        string
-	receiverAnchor MessageAnchor
-	senderAnchor   MessageAnchor
 }
 
 type IO string
@@ -58,7 +46,7 @@ const (
 )
 
 type Variable struct {
-	LevelID           string      `json:"levelID"`
+	LevelID           *string     `json:"levelID"`
 	IO                IO          `json:"io"`
 	Code              string      `json:"code"`
 	MediaType         string      `json:"mediaType"`
@@ -103,8 +91,8 @@ func (wfm *WorkflowMetadata) MatchRequestedPath(path string) (*StepMetadata, []*
 
 	for _, stepMetadata := range wfm.StepMetadatas {
 		// turn path into glob
-		if convertPathToGlob(stepMetadata.PathName).Match(path) {
-			anchors, _ := wfm.getStepMetadataAnchors(stepMetadata.ID)
+		if convertPathToGlob(*stepMetadata.PathName).Match(path) {
+			anchors, _ := wfm.getStepMetadataAnchors(*stepMetadata.ID)
 			return stepMetadata, anchors, true
 		}
 	}
@@ -114,12 +102,11 @@ func (wfm *WorkflowMetadata) MatchRequestedPath(path string) (*StepMetadata, []*
 
 type WorkflowMetadata struct {
 	StepMetadatas map[string]*StepMetadata `json:"step_metadata"`
-	WorkflowID    string                   `json:"workflow_id"`
-	IsActivated   bool                     `json:"is_activated"`
-	Variables     map[string]*Variable     `json:"variables"`
-	Summary       string                   `json:"summary"`
-	Description   string                   `json:"description"`
-	WorkflowName  string                   `json:"workflowName"`
+	WorkflowID    *string                  `json:"workflow_id"`
+	IsActivated   *bool                    `json:"is_activated"`
+	Summary       *string                  `json:"summary"`
+	Description   *string                  `json:"description"`
+	WorkflowName  *string                  `json:"workflowName"`
 	Pipes         map[string]*Pipe         `json:"pipes"`
 }
 
@@ -199,7 +186,11 @@ func (mockboard *Mockboard) HandleStepResponse(anchors []*Anchor, mock []byte) (
 
 // the anchors passed in are the for THIS PATH
 func (mockboard *Mockboard) HandleStepRequest(request *http.Request, anchors []*Anchor) ([]*Message, []error) {
-	anchors = getResponseAnchors(anchors)
+	anchors = getRequestAnchors(anchors)
+
+	if len(anchors) == 0 {
+		return nil, nil
+	}
 
 	var errors []error
 	var messages []*Message
@@ -269,12 +260,17 @@ func (mb *Mockboard) GetOperation(anchor *Anchor) (*v3.Operation, error) {
 
 func (mb *Mockboard) MatchPathOnActivatedWorkflows(path string) bool {
 
+	// in case it is not set
+	if mb.WorkflowMetadata == nil {
+		return false
+	}
+
 	for _, wfm := range mb.WorkflowMetadata {
-		if wfm.IsActivated {
+		if !*wfm.IsActivated {
 			continue
 		}
 		for _, sm := range wfm.StepMetadatas {
-			if convertPathToGlob(sm.PathName).Match(path) {
+			if convertPathToGlob(*sm.PathName).Match(path) {
 				return true
 			}
 		}
@@ -286,7 +282,7 @@ func (mb *Mockboard) GetActivatedWorkflows() []*WorkflowMetadata {
 	activatedWorkflows := []*WorkflowMetadata{}
 
 	for _, v := range mb.WorkflowMetadata {
-		if v.IsActivated {
+		if *v.IsActivated {
 			activatedWorkflows = append(activatedWorkflows, v)
 		}
 
@@ -298,7 +294,7 @@ func (mb *Mockboard) GetActivatedWorkflows() []*WorkflowMetadata {
 // Pipe Struct
 type Pipe struct {
 	ID                  string    `json:"id"`
-	Name                string    `json:"name"`
+	Name                *string   `json:"name"`
 	Input               *Anchor   `json:"input"`
 	Outputs             []*Anchor `json:"outputs"`
 	ExposeOutOfWorkflow bool      `json:"exposeOutOfWorkflow"`
@@ -306,9 +302,10 @@ type Pipe struct {
 }
 
 func NewPipe(id string, referenceType AnchorType, propertyType Property) *Pipe {
+	name := ""
 	return &Pipe{
 		ID:                  id,
-		Name:                "",
+		Name:                &name,
 		Input:               NewAnchor(id, referenceType, propertyType),
 		Outputs:             []*Anchor{},
 		ExposeOutOfWorkflow: false,

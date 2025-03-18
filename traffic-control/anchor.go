@@ -51,10 +51,15 @@ func (ss *TrafficControlService) updateAnchor(request *model.Request, core servi
 	// I am sending in the
 
 	pipe := ss.mockboard.WorkflowMetadata[anchorPayload.WorkflowID].Pipes[anchorPayload.PipeID]
-	for _, anchor := range pipe.Outputs {
+	founNum := -1
+	for num, anchor := range pipe.Outputs {
 		if anchor.ID == anchorPayload.Anchor.ID {
-			anchor = anchorPayload.Anchor
+			founNum = num
 		}
+	}
+	if founNum >= 0 {
+		pipe.Outputs[founNum] = anchorPayload.Anchor
+
 	}
 
 	if pipe.Input.ID == anchorPayload.Anchor.ID {
