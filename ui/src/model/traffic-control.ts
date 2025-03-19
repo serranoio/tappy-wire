@@ -133,6 +133,10 @@ export class WorkflowMetadata {
     this.workflowName = "";
   }
 
+  getWorkflowName() {
+    return this.workflowName === "" ? this.workflowID : this.workflowName;
+  }
+
   debug() {
     const stepMetadataDebug = normalizeMap(this.stepMetadatas).map(
       (stepMetadata: StepMetadata) => {

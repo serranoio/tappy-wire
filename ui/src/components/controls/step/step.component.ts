@@ -22,6 +22,8 @@ import {
 } from "@/model/traffic-control-utils";
 import { WiretapMatchedPath } from "../islands/mock-monitor-island";
 
+const HIGLIGHT_CLASS = "highlight";
+
 @customElement("arazzo-step")
 export class ArazzoStep extends LitElement {
   static styles = [stepCss];
@@ -128,13 +130,16 @@ export class ArazzoStep extends LitElement {
       const key = el.dataset.key;
       const value = el.dataset.value;
 
-      el.style.color = "#f83aff";
+      if (!el.classList.contains(HIGLIGHT_CLASS)) {
+        el.classList.add(HIGLIGHT_CLASS);
+      }
     });
   };
 
   turnOffElements = () => {
     this.elements.forEach((el) => {
-      el.style.color = "black";
+      if (el.classList.contains(HIGLIGHT_CLASS))
+        el.classList.remove(HIGLIGHT_CLASS);
     });
 
     this.elements = [];
@@ -289,7 +294,9 @@ export class ArazzoStep extends LitElement {
         slot="suffix"
         variant="primary"
         pill
-        pulse
+        ?pulse=${anchors
+          .map((anchor: Anchor) => anchor.expressionValue != "")
+          .includes(true)}
         class="anchor-badge"
         data-property-list=${`[${anchors
           .map((anchor: Anchor, num: number) => {
@@ -424,10 +431,19 @@ export class ArazzoStep extends LitElement {
     };
 
     const renderInputSection = () => {
+      const requestBody = renderRequestBody();
+      const parameters = renderParameters();
+      if (
+        requestBody.values.join("").length === 0 &&
+        parameters.values.join("").length === 0
+      ) {
+        return html``;
+      }
+
       return html`
         <div class="inputs">
           <p class="label">inputs</p>
-          <sl-menu> ${renderParameters()} ${renderRequestBody()} </sl-menu>
+          <sl-menu> ${parameters} ${requestBody} </sl-menu>
         </div>
       `;
     };

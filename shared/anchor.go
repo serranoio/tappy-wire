@@ -53,18 +53,18 @@ func (rbp *RequestBodyProperty) ripOffPrefix() string {
 	return rbp.Property[len(prefix):]
 }
 
-func (rbp *ResponseBodyProperty) PopulateAnchor(mock []byte) (interface{}, *Message, error) {
+func (rbp *ResponseBodyProperty) PopulateAnchor(mock []byte) (string, *Message, error) {
 	mockString := string(mock)
 	result := gjson.Get(mockString, rbp.ripOffPrefix())
 
 	if result.Exists() {
-		var value interface{}
+		var value string
 		value = result.Raw
 
 		return value, &Message{Message: fmt.Sprintf("Response body property %s=%s", rbp.ripOffPrefix(), value)}, nil
 	}
 
-	return nil, nil, fmt.Errorf("failed to get response body property %s", rbp.ripOffPrefix())
+	return "", nil, fmt.Errorf("failed to get response body property %s", rbp.ripOffPrefix())
 }
 
 func (r *ResponseBodyProperty) GetProperty() string {
@@ -78,7 +78,7 @@ type RequestBodyProperty struct {
 	Property      string `json:"property"`
 }
 
-func (rbp *RequestBodyProperty) InjectAnchorIntoRequstBody(request *http.Request, expressionValue interface{}) (*Message, error) {
+func (rbp *RequestBodyProperty) InjectAnchorIntoRequstBody(request *http.Request, expressionValue string) (*Message, error) {
 	body, err := io.ReadAll(request.Body)
 	defer request.Body.Close()
 	if err != nil {
@@ -96,11 +96,11 @@ func (rbp *RequestBodyProperty) InjectAnchorIntoRequstBody(request *http.Request
 	return message, nil
 }
 
-func (rbp *RequestBodyProperty) PopulateAnchor(request *http.Request, pathName string) (interface{}, *Message, error) {
+func (rbp *RequestBodyProperty) PopulateAnchor(request *http.Request, pathName string) (string, *Message, error) {
 	body, err := io.ReadAll(request.Body)
 	if err != nil {
 
-		return nil, nil, fmt.Errorf("could not read response body %s", err)
+		return "", nil, fmt.Errorf("could not read response body %s", err)
 	}
 	defer request.Body.Close()
 
@@ -109,13 +109,13 @@ func (rbp *RequestBodyProperty) PopulateAnchor(request *http.Request, pathName s
 	result := gjson.Get(bodyString, rbp.ripOffPrefix())
 
 	if result.Exists() {
-		var value interface{}
+		var value string
 		value = result.Raw
 
 		return value, &Message{Message: fmt.Sprintf("Successfully got request body property %s", rbp.ripOffPrefix())}, nil
 	}
 
-	return nil, nil, fmt.Errorf("failed to get request body property %s", rbp.ripOffPrefix())
+	return "", nil, fmt.Errorf("failed to get request body property %s", rbp.ripOffPrefix())
 }
 
 func (r *RequestBodyProperty) GetProperty() string {
@@ -170,7 +170,7 @@ func (p *ParameterProperty) injectVariableIntoPath(request *http.Request, pathNa
 	// parameter property is found in the path, let's go put it back in
 }
 
-func (p *ParameterProperty) extractVariableFromPath(request *http.Request, pathName string) (interface{}, error) {
+func (p *ParameterProperty) extractVariableFromPath(request *http.Request, pathName string) (string, error) {
 	// var errors []error
 	// get all variable names, match with this one
 	// users/*/hello/ok
@@ -243,14 +243,19 @@ func (p *ParameterProperty) injectVariableIntoQuery(request *http.Request, expre
 
 }
 
-func (p *ParameterProperty) extractVariableFromQuery(request *http.Request) (interface{}, error) {
+func (p *ParameterProperty) extractVariableFromQuery(request *http.Request) (string, error) {
 	queryParams := request.URL.Query()
 
 	if q, ok := queryParams[p.Property]; ok {
-		return q, nil
+		json, err := json.Marshal(q)
+		if err != nil {
+			return "", err
+		}
+
+		return string(json), nil
 	}
 
-	return nil, fmt.Errorf("there requested query param %s was not found in the request", p.Property)
+	return "", fmt.Errorf("there requested query param %s was not found in the request", p.Property)
 }
 
 func (p *ParameterProperty) injectVariableIntoHeader(request *http.Request, expressionValue interface{}) (*Message, error) {
@@ -290,14 +295,19 @@ func (p *ParameterProperty) injectVariableIntoHeader(request *http.Request, expr
 	return nil, fmt.Errorf("Cannot insert %s into query", expressionValue)
 }
 
-func (p *ParameterProperty) extractVariableFromHeader(request *http.Request) (interface{}, error) {
+func (p *ParameterProperty) extractVariableFromHeader(request *http.Request) (string, error) {
 	headers := request.Header
 
 	if h, ok := headers[p.Property]; ok {
-		return h, nil
+		json, err := json.Marshal(h)
+		if err != nil {
+			return "", err
+		}
+
+		return string(json), nil
 	}
 
-	return nil, fmt.Errorf("the requested header %s was not found in the request", p.Property)
+	return "", fmt.Errorf("the requested header %s was not found in the request", p.Property)
 }
 
 func (p *ParameterProperty) InjectVariableIntoParameter(request *http.Request, pathName string, expressionValue interface{}) (*Message, error) {
@@ -325,9 +335,9 @@ func (p *ParameterProperty) InjectVariableIntoParameter(request *http.Request, p
 	return message, nil
 }
 
-func (p *ParameterProperty) PopulateAnchor(request *http.Request, pathName string) (interface{}, *Message, error) {
+func (p *ParameterProperty) PopulateAnchor(request *http.Request, pathName string) (string, *Message, error) {
 
-	var variable interface{}
+	var variable string
 	var err error
 
 	switch p.Type {
@@ -345,7 +355,7 @@ func (p *ParameterProperty) PopulateAnchor(request *http.Request, pathName strin
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return "", nil, err
 	}
 
 	return variable, &Message{Message: fmt.Sprintf("Successfully extracted $%s.%s=%s", p.Type, p.Property, variable)}, nil
@@ -425,7 +435,7 @@ func (a *Anchor) GetFullProperty() string {
 func (a *Anchor) PopulateAnchorRequest(request *http.Request) (*Message, error) {
 	var err error
 	var message *Message
-	var value interface{}
+	var value string
 
 	switch a.ReferenceType {
 	case Parameter:
@@ -436,7 +446,7 @@ func (a *Anchor) PopulateAnchorRequest(request *http.Request) (*Message, error) 
 	case Custom:
 	}
 
-	a.Value = &value
+	a.Value = value
 
 	message.ReceiverAnchor = MessageAnchor{
 		ID:    a.ID,
@@ -446,16 +456,17 @@ func (a *Anchor) PopulateAnchorRequest(request *http.Request) (*Message, error) 
 	return message, err
 }
 
-func injectJSONEncodedInterfaceIntoByeString(ev interface{}, property string, byteString []byte, name string) ([]byte, *Message, error) {
-
-	j, _ := ev.(string)
-
-	updatedByteString, err := sjson.SetRawBytes(byteString, property, []byte(j))
-	if err != nil {
-		return updatedByteString, nil, fmt.Errorf("tried inserting %s at property %s into the %s, returning original %s", j, property, name, name)
+func injectJSONEncodedInterfaceIntoByeString(ev string, property string, byteString []byte, name string) ([]byte, *Message, error) {
+	if ev == "" {
+		return byteString, &Message{Message: fmt.Sprintf("there is no value in the expression, taking random mock value for property %s", property)}, nil
 	}
 
-	return updatedByteString, &Message{Message: fmt.Sprintf("successfully inserted %s at property %s into the %s", j, property, name)}, nil
+	updatedByteString, err := sjson.SetRawBytes(byteString, property, []byte(ev))
+	if err != nil {
+		return updatedByteString, nil, fmt.Errorf("tried inserting %s at property %s into the %s, returning original %s", ev, property, name, name)
+	}
+
+	return updatedByteString, &Message{Message: fmt.Sprintf("successfully inserted %s at property %s into the %s", ev, property, name)}, nil
 }
 
 func (a *Anchor) InjectAnchorValueIntoMock(mock []byte) ([]byte, *Message, error) {
@@ -489,7 +500,7 @@ func (a *Anchor) InjectAnchorValueIntoRequest(request *http.Request) (*Message, 
 func (a *Anchor) PopulateAnchorResponse(mock []byte) (*Message, error) {
 	var err error
 	var message *Message
-	var value interface{}
+	var value string
 
 	switch a.ReferenceType {
 	case ResponseBody:
@@ -498,7 +509,7 @@ func (a *Anchor) PopulateAnchorResponse(mock []byte) (*Message, error) {
 	case Custom:
 	}
 
-	a.Value = &value
+	a.Value = value
 
 	message.ReceiverAnchor = MessageAnchor{
 		ID:    a.ID,
@@ -510,13 +521,13 @@ func (a *Anchor) PopulateAnchorResponse(mock []byte) (*Message, error) {
 
 // !! for now, we will match by name. There will be collisons if different properties contain the same name.
 // feed pipes
-func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []interface{}, []*Message) {
+func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []string, []*Message) {
 
 	// ^ 1. get all values THAT ARE IN THE EXPRESSION STRING!!!!
 	// match properties in expression string
 	// get their anchor ID's,
 	// get their expression values
-	var values []interface{}
+	var values []string
 	var ars []AnchorReference
 	var messages []*Message
 
@@ -527,12 +538,18 @@ func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []inter
 					// $query.name + 4 + 6 + $properties.id
 					// $query.name
 					// if the expression contains the full property
-					if strings.Contains(a.Expression, pipe.Input.GetFullProperty()) {
-						// if it is null, don't do anything.
-						if v, _ := (pipe.Input.ExpressionValue).(string); len(v) == 0 {
-							continue
-						}
+					if pipe.Input.ExpressionValue == "" {
+						messages = append(messages, &Message{
+							Message: fmt.Sprintf("anchor %s (id: %s) has no value, not sending %s", pipe.Input.GetFullProperty(), pipe.Input.ID, pipe.Input.ExpressionValue),
+							SenderAnchor: MessageAnchor{
+								ID:    pipe.Input.ID,
+								Value: pipe.Input.ExpressionValue,
+							},
+						})
 
+						continue
+					}
+					if strings.Contains(a.Expression, pipe.Input.GetFullProperty()) {
 						values = append(values, pipe.Input.ExpressionValue)
 						ars = append(ars, AnchorReference{
 							ID:       pipe.Input.ID,
@@ -572,10 +589,13 @@ func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []inter
 		})
 	}
 
+	// empty string case
+	// 1. the sender is not populated & it is ONLY in the expression, then there is no value produced. then we want to take the old mock property
+
 	return ars, values, messages
 }
 
-func (a *Anchor) formFunctionCall(anchorReferences []AnchorReference, values []interface{}) string {
+func (a *Anchor) formFunctionCall(anchorReferences []AnchorReference, values []string) string {
 
 	var variablesString string
 
@@ -583,16 +603,20 @@ func (a *Anchor) formFunctionCall(anchorReferences []AnchorReference, values []i
 	// form variables
 	for i, value := range values {
 		varName := fmt.Sprintf("var%d", i)
-		if v, success := value.(string); success {
-			variablesString += fmt.Sprintf("\tconst %s = JSON.parse('%s');\n", varName, v)
-		} else if v, success := value.(int); success {
-			variablesString += fmt.Sprintf("\tconst %s = JSON.parse('%d');\n", varName, v)
-		}
-		// ! dont add it if it is nil
+		variablesString += fmt.Sprintf("\tconst %s = JSON.parse('%s');\n", varName, value)
+
 		// replace the expression with the variable names too!
-		//
 		evalExpression = strings.ReplaceAll(evalExpression, anchorReferences[i].Property, varName)
 	}
+
+	// if len(variablesString) == 0 {
+	// 	num, err := strconv.Atoi(evalExpression)
+	// 	if err != nil {
+	// 		evalExpression = fmt.Sprintf("\"%s\"", evalExpression)
+	// 	} else {
+	// 		evalExpression = fmt.Sprintf("\"%d\"", num)
+	// 	}
+	// }
 
 	javaScript := fmt.Sprintf(`
 %s
@@ -607,7 +631,7 @@ func (a *Anchor) formFunctionCall(anchorReferences []AnchorReference, values []i
 	return javaScript
 }
 
-func (a *Anchor) executeJS(ars []AnchorReference, values []interface{}) (*Message, error) {
+func (a *Anchor) executeJS(ars []AnchorReference, values []string) (*Message, error) {
 
 	js := a.formFunctionCall(ars, values)
 	ctx := v8.NewContext()
@@ -653,7 +677,6 @@ func NewAnchor(id string, referenceType AnchorType, propertyType Property) *Anch
 	pathMethod := ""
 	pathName := ""
 	stepID := ""
-	var expressionValue interface{}
 	anchor := &Anchor{
 		ID:               id,
 		ReferenceType:    referenceType,
@@ -664,7 +687,7 @@ func NewAnchor(id string, referenceType AnchorType, propertyType Property) *Anch
 		SenderPipes:      []string{},
 		StepID:           stepID,
 		AnchorReferences: []AnchorReference{},
-		ExpressionValue:  expressionValue,
+		ExpressionValue:  "",
 	}
 
 	switch v := propertyType.(type) {

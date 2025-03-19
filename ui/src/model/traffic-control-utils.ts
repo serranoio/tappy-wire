@@ -34,7 +34,7 @@ export function deepSnakeToCamel(obj) {
 }
 
 export function isObjectEmpty(obj): boolean {
-  if (Object.values(obj).length === 0) {
+  if (!obj || Object.values(obj).length === 0) {
     return true;
   }
 

@@ -239,8 +239,12 @@ export default css`
   }
 
   .schema-container {
-    color: black;
     max-width: 20rem;
+    color: var(--font-color);
+  }
+
+  .highlight {
+    color: var(--primary-color);
   }
 
   .schema-container-overflow {

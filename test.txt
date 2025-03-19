@@ -1,51 +1,4 @@
 type: object
-required:
-    - name
-    - horse
-properties:
-    name:
-        type: string
-        description: The cowboy's name
-        example: "Buck 'The Kid' Anderson"
-    horse:
-        type: string
-        description: The name of their trusty steed
-        example: "Lightning"
-    skills:
-        type: array
-        items:
-            type: string
-            enum:
-                - shooting
-                - lassoing
-                - poker
-                - horseback-riding
-
-type: object
-required:
-    - name
-    - horse
-properties:
-    name:
-        type: string
-        description: The cowboy's name
-        example: "Buck 'The Kid' Anderson"
-    horse:
-        type: string
-        description: The name of their trusty steed
-        example: "Lightning"
-    skills:
-        type: array
-        items:
-            type: string
-            enum:
-                - shooting
-                - lassoing
-                - poker
-                - horseback-riding
-
-
-type: object
 properties:
     message:
         type: string
@@ -247,5 +200,52 @@ properties:
         type: string
         description: Shape of glass
         enum: ["Martini", "Highball", "Collins", "Rocks"]
+
+
+type: object
+required:
+    - name
+    - horse
+properties:
+    name:
+        type: string
+        description: The cowboy's name
+        example: "Buck 'The Kid' Anderson"
+    horse:
+        type: string
+        description: The name of their trusty steed
+        example: "Lightning"
+    skills:
+        type: array
+        items:
+            type: string
+            enum:
+                - shooting
+                - lassoing
+                - poker
+                - horseback-riding
+
+type: object
+required:
+    - name
+    - horse
+properties:
+    name:
+        type: string
+        description: The cowboy's name
+        example: "Buck 'The Kid' Anderson"
+    horse:
+        type: string
+        description: The name of their trusty steed
+        example: "Lightning"
+    skills:
+        type: array
+        items:
+            type: string
+            enum:
+                - shooting
+                - lassoing
+                - poker
+                - horseback-riding
 
 

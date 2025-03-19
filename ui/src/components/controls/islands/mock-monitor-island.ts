@@ -1,8 +1,15 @@
-import { insertSpaces, sendEvent } from "@/model/traffic-control-utils";
+import {
+  insertSpaces,
+  isObjectEmpty,
+  normalizeMap,
+  sendEvent,
+} from "@/model/traffic-control-utils";
 import { html } from "lit";
 import { TrafficControlComponent } from "../traffic-control.component";
-import { HttpTransaction } from "@/model/http_transaction";
+import { HttpRequest, HttpTransaction } from "@/model/http_transaction";
 import { Message } from "@/model/message";
+import { StepMetadata, WorkflowMetadata } from "@/model/traffic-control";
+import { normalize } from "path";
 
 export const renderMockMonitorIsland = (
   thisComponent: TrafficControlComponent
@@ -16,28 +23,61 @@ export const renderMockMonitorIsland = (
       <div id="mock-monitor-list">
         ${thisComponent.mocks.map((mock) => {
           return html`
-            <div class="mock-transaction">
+            <div
+              class="mock-transaction"
+              @click=${() => {
+                const httpTransaction = Object.assign(
+                  new HttpTransaction(),
+                  mock.transaction
+                );
+                thisComponent.transactionViewComponent.httpTransaction =
+                  httpTransaction;
+
+                thisComponent.selectedMock = mock;
+                thisComponent.mockMonitorDialog.show();
+              }}
+            >
               <div class="titles-div">
-                <h4 class="mock-transaction-header">${mock?.path}</h4>
+                <h4 class="mock-transaction-header">
+                  <span style="margin-left: 4px;"> ${mock?.path} </span>
+                  <span>
+                    ${mock?.workflows.map(
+                      (name: string, num: number) => name + " "
+                    )}
+                  </span>
+                </h4>
                 <div class="subtitles">
                   <div class="title-section">
                     <h5>Messages</h5>
                     <div class="icon-box">
-                      <span>5</span>
+                      <span>${mock.messages?.length}</span>
                       <sl-icon name="chat-left"></sl-icon>
                     </div>
                   </div>
                   <div class="title-section">
                     <h5>Anchors</h5>
                     <div class="icon-box">
-                      <span>5</span>
+                      <span
+                        >${mock.messages
+                          ?.flatMap((message: Message) => {
+                            let count = 0;
+                            if (message.receiverAnchor) {
+                              count++;
+                            } else if (message.senderAnchor) {
+                              count++;
+                            }
+
+                            return count;
+                          })
+                          .reduce((acc, cum) => acc + cum)}</span
+                      >
                       <sl-icon name="link"></sl-icon>
                     </div>
                   </div>
                   <div class="title-section">
                     <h5>Errors</h5>
                     <div class="icon-box">
-                      <span>5</span>
+                      <span> ${mock?.errs?.length} </span>
                       <sl-icon name="bug"></sl-icon>
                     </div>
                   </div>
@@ -60,12 +100,28 @@ const handleWiretapMatchedPath = (
   headers
 ) => {
   sendEvent(thisComponent, WiretapMatchedPath, headers[WiretapMatchedPath]);
+  if (!headers[WiretapMatchedPath]) {
+    console.log("no matched path");
+    return;
+  }
 
-  thisComponent.mocks.unshift({
-    path: thisComponent.mockBoard.workflowMetadatas
-      .get(thisComponent.selectedWorkflow.workflowID)
-      .stepMetadatas.get(headers[WiretapMatchedPath]).pathName,
-  });
+  thisComponent.mocks[0].workflows = [];
+  normalizeMap(thisComponent.mockBoard.workflowMetadatas).forEach(
+    (workflow: WorkflowMetadata) => {
+      if (!workflow.isActivated) return;
+
+      normalizeMap(workflow.stepMetadatas).map((stepMetadata: StepMetadata) => {
+        const obj = JSON.parse(headers[WiretapMatchedPath]);
+        console.log("parsed path", obj, headers[WiretapMatchedPath]);
+
+        if (obj.includes(stepMetadata.id)) {
+          thisComponent.mocks[0].path = stepMetadata.pathName;
+          thisComponent.mocks[0].workflows.push(workflow.getWorkflowName());
+        }
+      });
+    }
+  );
+
   thisComponent.requestUpdate();
 };
 
@@ -75,26 +131,42 @@ export const constructMockRequest = (
   transaction: HttpTransaction,
   thisComponent: TrafficControlComponent
 ): { isMock: boolean; messages: Message[]; errors: MockError[] } => {
-  const headers = transaction.httpResponse.headers;
+  const httpTransaction = new HttpTransaction();
 
-  if (headers[WiretapTypeHeader] === "Proxy") {
+  httpTransaction.httpRequest = Object.assign(
+    new HttpRequest(),
+    transaction.httpRequest
+  );
+  httpTransaction.httpResponse = Object.assign(
+    new HttpRequest(),
+    transaction.httpResponse
+  );
+  thisComponent.mocks.unshift({ transaction: httpTransaction });
+
+  if (httpTransaction.httpResponse.headers[WiretapTypeHeader] === "Proxy") {
     return { isMock: false, messages: [], errors: [] };
   }
 
-  handleWiretapMatchedPath(thisComponent, headers);
+  handleWiretapMatchedPath(thisComponent, httpTransaction.httpResponse.headers);
 
   let messages: Message[] = [];
-  const msg = JSON.parse(transaction.httpResponse.headers.Messages);
+  const msg = JSON.parse(httpTransaction.httpResponse.headers.Messages);
   if (msg) {
     messages = Message.ConstructMessages(msg);
-    console.log(messages);
+    thisComponent.mocks[0].messages = messages;
     const anchorMessages = Message.FindMessagesWithAnchors(messages);
-
-    console.log(anchorMessages);
+    thisComponent.mocks[0].anchorMessages = anchorMessages;
+    console.log(thisComponent.mocks, messages, anchorMessages);
   }
 
-  const errs = JSON.parse(transaction.httpResponse.headers.Messages);
-  if (errs) {
+  const errs = JSON.parse(
+    httpTransaction.httpResponse.headers["Wiretap-Mock-Errors"]
+  );
+
+  if (!errs || isObjectEmpty(errs[0])) {
+    thisComponent.mocks[0].errs = [];
+  } else {
+    thisComponent.mocks[0].errs = errs;
   }
 
   // render the request as a div and have it dissappear after 100 seconds or some shit

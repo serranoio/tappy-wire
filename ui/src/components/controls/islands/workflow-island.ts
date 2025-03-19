@@ -50,6 +50,10 @@ export const renderStatusIndicator = (
       @click=${(e: any) => {
         thisComponent.mockBoard.workflowMetadatas.get(key).isActivated =
           !thisComponent.mockBoard.workflowMetadatas.get(key).isActivated;
+        thisComponent.mockBoard.updateWorkflow(
+          thisComponent.selectedWorkflow.workflowID,
+          thisComponent._bus
+        );
         thisComponent.requestUpdate();
         e.stopPropagation();
       }}

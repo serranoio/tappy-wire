@@ -54,6 +54,7 @@ import mockMonitorIslandCss from "./islands/mock-monitor-island.css";
 import { HttpTransaction } from "@/model/http_transaction";
 import { Message } from "@/model/message";
 import { styleMap } from "lit/directives/style-map.js";
+import { HttpTransactionViewComponent } from "../transaction/transaction-view";
 
 @customElement("traffic-control")
 export class TrafficControlComponent extends LitElement {
@@ -156,6 +157,15 @@ export class TrafficControlComponent extends LitElement {
   @state()
   mocks: any = [];
 
+  @state()
+  selectedMock: any = null;
+
+  @query("#mock-monitor-dialog")
+  mockMonitorDialog;
+
+  @state()
+  transactionViewComponent: HttpTransactionViewComponent;
+
   @query("#fly-container") flyContainer;
 
   populateStateFromMockboard() {
@@ -179,6 +189,8 @@ export class TrafficControlComponent extends LitElement {
     this._storeManager = GetBagManager();
     this._wiretapChannel = this._bus.getChannel(WiretapChannel);
     this._controlsStore = this._storeManager.getBag(TrafficControlStore);
+
+    this.transactionViewComponent = new HttpTransactionViewComponent();
 
     this._controlsStore.subscribe(MockBoardKey, (mb) => {
       this.mockBoard = mb;
@@ -270,18 +282,19 @@ export class TrafficControlComponent extends LitElement {
         const rt = receiverRect.y + receiverRect.height / 2;
 
         let styles = {
-          left: `${rl}px`,
-          top: `${rt}px`,
+          left: `${sl}px`, // this is the starting position for both, then animate takes over and changes the position.
+          top: `${st}px`,
         };
 
         const keyframes = [
-          { left: `${sl}px` }, // Starting position
-          { top: `${st}px` }, // Starting position
+          { left: `${sl}px`, top: `${st}px` }, // Starting position
+          { left: `${rl}px`, top: `${rt}px` }, // Starting position
         ];
 
+        const ANIMATION_DURATION = 5000;
         // Define the animation options
         const options = {
-          duration: 5000, // Duration of 5 seconds
+          duration: ANIMATION_DURATION, // Duration of 5 seconds
           easing: "ease-in-out", // Smooth easing for the animation
         };
 
@@ -295,7 +308,7 @@ export class TrafficControlComponent extends LitElement {
 
         setTimeout(() => {
           span.remove();
-        }, 5000);
+        }, ANIMATION_DURATION - 20);
       });
     }
   }
@@ -575,6 +588,30 @@ export class TrafficControlComponent extends LitElement {
       ${renderWorkflowIsland(this)} ${renderProxyMonitorIsland(this)}
       ${renderPathsIsland(this)} ${this.renderSteps()}
       ${renderPipeBankIsland(this)} ${renderMockMonitorIsland(this)}
+      <sl-dialog id="mock-monitor-dialog" class="dialog-overview">
+        <div class="dialog-container">
+          <div>${this.selectedMock?.path}</div>
+          <div>
+            ${this.selectedMock?.anchorMessages?.map((am) => {
+              return html` <li>${am.message}</li> `;
+            })}
+          </div>
+          <div>
+            <h4>Messages</h4>
+            ${this.selectedMock?.messages?.map((m) => {
+              return html` <li>${m.message}</li> `;
+            })}
+          </div>
+          <div>
+            <h4>Errors</h4>
+            ${this.selectedMock?.errs?.map((err) => {
+              return html` <li>${err}</li> `;
+            })}
+          </div>
+          </br>
+          ${this.transactionViewComponent.render()}
+        </div>
+      </sl-dialog>
       <sl-icon-button
         name="x-lg"
         class="close-mock-board"

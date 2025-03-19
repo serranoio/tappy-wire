@@ -37,7 +37,7 @@ func (ws *WiretapService) handleMockRequest(
 		}
 	}
 
-	stepID, anchors, foundAnchors := ws.getAllAnchorsOnThisPath(config, request.HttpRequest.URL.Path)
+	stepIDs, anchors, foundAnchors := ws.getAllAnchorsOnThisPath(config, request.HttpRequest.URL.Path)
 
 	var mockboardMessages []*shared.Message
 	var mockboardErrs []error
@@ -57,6 +57,9 @@ func (ws *WiretapService) handleMockRequest(
 		mockboardMessages = append(mockboardMessages, msgs...)
 		mockboardErrs = append(mockboardErrs, errs...)
 	}
+
+	// * for mockboard
+	ws.updateMockboardState()
 
 	// validate http request.
 	ws.ValidateRequest(request, newReq)
@@ -86,17 +89,24 @@ func (ws *WiretapService) handleMockRequest(
 		}
 	}
 
-	if stepID != "" {
-		request.HttpResponseWriter.Header().Set(MatchedPath, stepID)
-		header.Add(MatchedPath, stepID)
+	if len(stepIDs) != 0 {
+		encodedStepIDs, _ := json.Marshal(stepIDs)
+
+		request.HttpResponseWriter.Header().Set(MatchedPath, string(encodedStepIDs))
+		header.Add(MatchedPath, string(encodedStepIDs))
 	}
 
 	mmJSON, _ := json.Marshal(mockboardMessages)
 	request.HttpResponseWriter.Header().Set("Messages", string(mmJSON))
 	header.Add("Messages", string(mmJSON))
-	errsJSON, _ := json.Marshal(mockboardErrs)
+	errsString := []string{}
+	for _, e := range mockboardErrs {
+		errsString = append(errsString, e.Error())
+	}
+
+	errsJSON, _ := json.Marshal(errsString)
 	request.HttpResponseWriter.Header().Set(WiretapMockErrors, string(errsJSON))
-	header.Add(WiretapMockErrors, string(mmJSON))
+	header.Add(WiretapMockErrors, string(errsJSON))
 	request.HttpResponseWriter.Header().Set(WiretapTypeHeader, Mock)
 	header.Add(WiretapTypeHeader, Mock)
 

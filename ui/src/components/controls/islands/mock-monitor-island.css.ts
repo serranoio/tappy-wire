@@ -36,9 +36,22 @@ export default css`
     gap: 5px;
   }
 
+  #mock-monitor-dialog::part(panel) {
+    height: 80vh !important;
+    width: 80vw !important;
+  }
+  #mock-monitor-dialog::part(base) {
+  }
+
+  .dialog-container {
+    height: 80vh !important;
+    width: 80vw !important;
+  }
+
   .mock-transaction {
     border-bottom: 1px dashed var(--primary-color);
     padding: 10px;
+    cursor: pointer;
   }
   .mock-transaction-header {
     font-size: 0.75rem;
