@@ -10,7 +10,7 @@
 			"request": "launch",
 			"mode": "auto",
 			"program": "${workspaceFolder}",
-			"args": ["-c", "../config.yaml", "-l"]
+			"args": ["-c", "wiretap_e2e_config.yml", "-l"]
 		}
 	]
 }

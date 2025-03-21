@@ -7,6 +7,7 @@ export default css`
     bottom: 30%;
     max-height: 50vh;
     min-height: 50vh;
+    max-width: 10rem;
     background-color: var(--background-color);
     width: auto;
     min-width: 10rem;
@@ -18,6 +19,8 @@ export default css`
     list-style: none;
     display: flex;
     flex-direction: column;
+    overflow-y: scroll;
+    max-height: 50vh;
   }
 
   .path-item {

@@ -509,6 +509,10 @@ func (a *Anchor) PopulateAnchorResponse(mock []byte) (*Message, error) {
 	case Custom:
 	}
 
+	if err != nil {
+		return nil, err
+	}
+
 	a.Value = value
 
 	message.ReceiverAnchor = MessageAnchor{

@@ -1,3 +1,4 @@
+import { html } from "lit";
 import { httpMethods, normalizeMap } from "./traffic-control-utils";
 import YAML from "yaml";
 export class MediaType {
@@ -229,6 +230,18 @@ export class PathItem {
 		 \n\toptions: ${this.options.debug()}
 		 \n\t paremters: <not implemented>
 		 `;
+  }
+
+  renderName() {
+    if (this.name.length > 10) {
+      return html`
+      <sl-tooltip content=${this.name} >
+        <p>${this.name.slice(0,10) + "..."}</p>
+    </sl-tooltip>
+      `;
+    }
+
+    return html`${this.name}`;
   }
 
   static GetOperation(pathItems: PathItem[], operationID: string): Operation {

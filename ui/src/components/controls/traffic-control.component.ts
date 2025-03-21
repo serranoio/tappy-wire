@@ -251,6 +251,8 @@ export class TrafficControlComponent extends LitElement {
       return;
     }
 
+    console.log("found transaction", messages, errors)
+
     const am = Message.FindMessagesWithAnchors(messages);
     let foundReceiver: HTMLElement[] = [];
     let foundSender: HTMLElement[] = [];

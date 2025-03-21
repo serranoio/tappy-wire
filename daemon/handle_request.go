@@ -138,9 +138,13 @@ func (ws *WiretapService) handleHttpRequest(request *model.Request) {
 
 	ws.config.Logger.Info("[wiretap] handling API request", "url", request.HttpRequest.URL.String())
 
+	// only rewrite paths if they are in mockmode
+
 	// short-circuit if we're using mock mode, there is no API call to make
 	if ws.config.Mockboard.MatchPathOnActivatedWorkflows(apiRequest.URL.Path) || ws.config.MockMode || configModel.IncludePathOnMockMode(apiRequest.URL.Path, ws.config) {
 		ws.config.Logger.Info("MockMode enabled; skipping validation")
+		request.HttpRequest.Header.Set("Authorization", apiRequest.Header.Get("Authorization"))
+		ws.rewritePath(request.HttpRequest, ws.config)
 		ws.handleMockRequest(request, config, newReq)
 		return
 	} else if configModel.IgnoreValidationOnPath(apiRequest.URL.Path, ws.config) && !configModel.PathValidationAllowListed(apiRequest.URL.Path, ws.config) {

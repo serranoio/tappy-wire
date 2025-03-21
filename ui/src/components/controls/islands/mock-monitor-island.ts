@@ -41,7 +41,7 @@ export const renderMockMonitorIsland = (
                 <h4 class="mock-transaction-header">
                   <span style="margin-left: 4px;"> ${mock?.path} </span>
                   <span>
-                    ${mock?.workflows.map(
+                    ${mock?.workflows?.map(
                       (name: string, num: number) => name + " "
                     )}
                   </span>
@@ -97,14 +97,15 @@ export const Messages = "Messages";
 
 const handleWiretapMatchedPath = (
   thisComponent: TrafficControlComponent,
+  httpTransaction: HttpTransaction, 
   headers
-) => {
+): boolean => {
   sendEvent(thisComponent, WiretapMatchedPath, headers[WiretapMatchedPath]);
   if (!headers[WiretapMatchedPath]) {
-    console.log("no matched path");
-    return;
+    return false;
   }
 
+  thisComponent.mocks.unshift({ transaction: httpTransaction });
   thisComponent.mocks[0].workflows = [];
   normalizeMap(thisComponent.mockBoard.workflowMetadatas).forEach(
     (workflow: WorkflowMetadata) => {
@@ -123,6 +124,7 @@ const handleWiretapMatchedPath = (
   );
 
   thisComponent.requestUpdate();
+  return true
 };
 
 export interface MockError {}
@@ -141,14 +143,16 @@ export const constructMockRequest = (
     new HttpRequest(),
     transaction.httpResponse
   );
-  thisComponent.mocks.unshift({ transaction: httpTransaction });
-
+  
   if (httpTransaction.httpResponse.headers[WiretapTypeHeader] === "Proxy") {
     return { isMock: false, messages: [], errors: [] };
   }
-
-  handleWiretapMatchedPath(thisComponent, httpTransaction.httpResponse.headers);
-
+  
+  const isMatched = handleWiretapMatchedPath(thisComponent, httpTransaction, httpTransaction.httpResponse.headers);
+  if (!isMatched) return { isMock: false, messages: null, errors: null};
+  
+  // only now can we pu this on the mock monitor
+  
   let messages: Message[] = [];
   const msg = JSON.parse(httpTransaction.httpResponse.headers.Messages);
   if (msg) {
@@ -156,7 +160,6 @@ export const constructMockRequest = (
     thisComponent.mocks[0].messages = messages;
     const anchorMessages = Message.FindMessagesWithAnchors(messages);
     thisComponent.mocks[0].anchorMessages = anchorMessages;
-    console.log(thisComponent.mocks, messages, anchorMessages);
   }
 
   const errs = JSON.parse(

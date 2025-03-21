@@ -36,7 +36,9 @@ export const renderPathsIsland = (thisComponent: TrafficControlComponent) => {
           return html`
             <li class="path-item">
               <sl-dropdown>
-                <p slot="trigger">${pathItem.name}</p>
+                <p slot="trigger">
+                  ${pathItem.renderName()}
+                </p>
                 <sl-menu
                   @sl-select=${(e: SlMenuItem) => {
                     if (!thisComponent.selectedWorkflow) {

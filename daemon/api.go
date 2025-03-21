@@ -38,12 +38,9 @@ func (c *wiretapTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-func (ws *WiretapService) callAPI(req *http.Request) (*http.Response, error) {
-
-	configStore, _ := ws.controlsStore.Get(shared.ConfigKey)
+func (ws *WiretapService) rewritePath(req *http.Request, wiretapConfig *shared.WiretapConfiguration) string {
 
 	// create a new request from the original request, but replace the path
-	wiretapConfig := configStore.(*shared.WiretapConfiguration)
 
 	// lookup path and determine if we need to redirect it.
 	replaced := config.RewritePath(req.URL.Path, req, wiretapConfig)
@@ -59,6 +56,21 @@ func (ws *WiretapService) callAPI(req *http.Request) (*http.Response, error) {
 			pterm.Info.Printf("[wiretap] Re-writing path '%s' to '%s'\n", req.URL.String(), newUrl.String())
 		}
 		req.URL = newUrl
+	}
+
+	return req.URL.String()
+}
+
+func (ws *WiretapService) callAPI(req *http.Request) (*http.Response, error) {
+	configStore, _ := ws.controlsStore.Get(shared.ConfigKey)
+
+	wiretapConfig := configStore.(*shared.WiretapConfiguration)
+
+	// we only want to rewrite the path if it is on mockboard
+	// 1. splunk requires that we rewrite the paths that come from 8089
+	// 2. I need to rewrite certain paths to match the spec for mockboard to work.
+	if !ws.config.Mockboard.IsRequestOnMockboard(req.URL.Path) {
+		ws.rewritePath(req, wiretapConfig)
 	}
 
 	tr := newWiretapTransport()

@@ -58,6 +58,8 @@ type Variable struct {
 }
 
 func convertPathToGlob(path string) glob.Glob {
+	path = "*" + path
+
 	re := regexp.MustCompile(`\{[^}]*\}`)
 
 	path = re.ReplaceAllString(path, "*")
@@ -108,6 +110,17 @@ type WorkflowMetadata struct {
 	Description   *string                  `json:"description"`
 	WorkflowName  *string                  `json:"workflowName"`
 	Pipes         map[string]*Pipe         `json:"pipes"`
+}
+
+func (m *Mockboard) IsRequestOnMockboard(requestPath string) bool {
+	for _, workflow := range m.GetActivatedWorkflows() {
+		_, _, foundStep := workflow.MatchRequestedPath(requestPath)
+		if foundStep {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Mockboard struct {
