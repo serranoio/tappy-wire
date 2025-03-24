@@ -8,16 +8,20 @@ export default css`
     max-height: 50vh;
     min-height: 50vh;
     background-color: var(--background-color);
+    max-width: 13rem;
     width: auto;
     min-width: 10rem;
     border-bottom-left-radius: 5px;
     border-top-left-radius: 5px;
+    box-shadow: 0 0 10px 0.2px var(--primary-color);
   }
 
   .path-items-list {
     list-style: none;
     display: flex;
     flex-direction: column;
+    overflow-y: scroll;
+    max-height: 50vh;
   }
 
   .path-item {

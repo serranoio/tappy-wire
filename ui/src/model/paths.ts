@@ -1,20 +1,77 @@
-import { httpMethods, normalizeMap } from "./traffic-control-utils";
+import { html } from "lit";
+import {
+  httpMethods,
+  isObjectEmpty,
+  normalizeMap,
+} from "./traffic-control-utils";
 import YAML from "yaml";
+import { SlMenuItem } from "@shoelace-style/shoelace";
+
+export class Schema {
+  schema: string;
+  ref: string;
+  oneOf: Schema[];
+
+  constructor(value) {
+    this.ref = value.ref;
+    this.oneOf = value?.oneOf?.map((oneOfSchema: Schema) => {
+      const newSchema = new Schema(oneOfSchema);
+      return newSchema;
+    });
+    if (!this.oneOf) {
+      this.schema = YAML.parse(atob(value.schema));
+    } else {
+      this.schema = "";
+    }
+    if (value.ref) {
+      this.ref = value.ref;
+    }
+  }
+
+  isPolymorphicSchema() {
+    // @ts-ignore
+    if (isObjectEmpty(this.oneOf) || this.oneOf.length === 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  normalize() {
+    return {
+      schema: btoa(YAML.stringify(this.schema)),
+      ref: this.ref,
+      oneOf: this.oneOf?.map((oneOf: Schema) => oneOf.normalize()),
+    };
+  }
+
+  static RenderRefWithoutComponentsSchemaPrefix(ref: string) {
+    return ref.slice(21);
+  }
+}
+
 export class MediaType {
   name: string;
-  schema: string;
-  resolvedSchema: string;
+  schema: Schema;
   isOpened: boolean;
+  examples: string[];
+  selectedExample: string;
 
   constructor(value) {
     this.name = value.name;
-    if (value.schema) {
-      this.schema = YAML.parse(atob(value.schema));
-    }
-    if (value.resolvedSchema) {
-      this.resolvedSchema = YAML.parse(atob(value.resolvedSchema));
-    }
+
+    this.schema = new Schema(value.schema);
     this.isOpened = true;
+    this.examples = value.examples;
+    this.selectedExample = value.selectedexample;
+  }
+  normalize() {
+    return {
+      name: this.name,
+      schema: this.schema.normalize(),
+      examples: this.examples,
+      selectedExample: this.selectedExample,
+    };
   }
 
   debug() {
@@ -47,6 +104,16 @@ export class RequestBody {
 
     return `description: ${this.description} required: ${this.required} content: ${content}`;
   }
+
+  normalize() {
+    return {
+      description: this.description,
+      required: this.required,
+      content: normalizeMap(this.content).map((content: MediaType) =>
+        content.normalize()
+      ),
+    };
+  }
 }
 
 export class Header {
@@ -66,9 +133,6 @@ export class ResponseCode {
     this.headers = new Map();
     this.isOpened = false;
 
-    // Object.values(value.headers).map((key, code) => {
-    // 	this.headers.set(key, new Header(code))
-    // });
     this.content = new Map();
 
     if (value.content) {
@@ -76,6 +140,17 @@ export class ResponseCode {
         this.content.set(content.name, new MediaType(content));
       });
     }
+  }
+
+  normalize() {
+    return {
+      name: this.name,
+      description: this.description,
+      // headers: normali
+      content: normalizeMap(this.content).map((content: MediaType) =>
+        content.normalize()
+      ),
+    };
   }
 
   debug() {
@@ -100,6 +175,14 @@ export class Responses {
     Object.values(value.codes).map((code: ResponseCode) => {
       this.codes.set(code.name, new ResponseCode(code));
     });
+  }
+
+  normalize() {
+    return {
+      codes: normalizeMap(this.codes).map((code: ResponseCode) =>
+        code.normalize()
+      ),
+    };
   }
 
   debug() {
@@ -130,8 +213,7 @@ export class Parameter {
   required: boolean;
   allowEmptyValue: boolean;
   allowReserved: boolean;
-  schema: string; // You could use 'Buffer' if you want to store binary data in Node.js
-  resolvedSchema: string;
+  schema: Schema;
 
   constructor(value) {
     this.name = value.name;
@@ -140,12 +222,7 @@ export class Parameter {
     this.required = value.required;
     this.allowEmptyValue = value.allowEmptyValue;
     this.allowReserved = value.allowReserved;
-    if (value.schema) {
-      this.schema = atob(value.schema);
-    }
-    if (value.resolvedSchema) {
-      this.resolvedSchema = atob(value.resolvedSchema);
-    }
+    this.schema = new Schema(value.schema);
   }
 }
 
@@ -174,6 +251,20 @@ export class Operation {
     this.responses = new Responses(value.responses);
     this.security = value.security;
     this.method = method;
+  }
+
+  normalize() {
+    return {
+      tags: this.tags,
+      summary: this.summary,
+      description: this.description,
+      operationId: this.operationId,
+      parameters: this.parameters,
+      requestBody: this.requestBody.normalize(),
+      responses: this.responses.normalize(),
+      security: null,
+      method: this.method,
+    };
   }
 
   debug() {
@@ -229,6 +320,49 @@ export class PathItem {
 		 \n\toptions: ${this.options.debug()}
 		 \n\t paremters: <not implemented>
 		 `;
+  }
+
+  renderName() {
+    const length = 20;
+    if (this.name.length > length) {
+      return html`
+        <sl-tooltip content=${this.name}>
+          <p>${this.name.slice(0, length) + "..."}</p>
+        </sl-tooltip>
+      `;
+    }
+
+    return html`${this.name}`;
+  }
+
+  renderPathItemInPathsIsland(
+    menuSelectCallback: (e: CustomEvent<SlMenuItem>) => void
+  ) {
+    return html`
+      <li class="path-item">
+        <sl-dropdown>
+          <p slot="trigger">${this.renderName()}</p>
+          <sl-menu @sl-select=${menuSelectCallback}>
+            ${this.renderHttpMethods()}
+          </sl-menu>
+        </sl-dropdown>
+      </li>
+    `;
+  }
+
+  renderHttpMethods() {
+    return html`
+      ${httpMethods.map((method: string) => {
+        if (isObjectEmpty(this[method])) {
+          return html``;
+        }
+        return html`
+          <sl-menu-item value="${method}">
+            <sl-badge size="small" class="${method}-color">${method}</sl-badge>
+          </sl-menu-item>
+        `;
+      })}
+    `;
   }
 
   static GetOperation(pathItems: PathItem[], operationID: string): Operation {

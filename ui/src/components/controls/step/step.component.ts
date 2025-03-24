@@ -1,14 +1,19 @@
 import { LitElement, html, css, PropertyValueMap } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import stepCss from "./step.css";
-import { MediaType, Parameter, PathItem, ResponseCode } from "@/model/paths";
+import {
+  MediaType,
+  Parameter,
+  PathItem,
+  ResponseCode,
+  Schema,
+} from "@/model/paths";
 import {
   ParameterProperty,
   Pipe,
   Anchor,
   RequestBodyProperty,
   ResponseBodyProperty,
-  StepMetadata,
 } from "@/model/traffic-control";
 import {
   IO,
@@ -19,8 +24,10 @@ import {
   insertSpaces,
   normalizeMap,
   sendEvent,
+  isObjectEmpty,
 } from "@/model/traffic-control-utils";
 import { WiretapMatchedPath } from "../islands/mock-monitor-island";
+import { StepMetadata } from "@/model/traffic-control/step-metadata";
 
 const HIGLIGHT_CLASS = "highlight";
 
@@ -36,6 +43,9 @@ export class ArazzoStep extends LitElement {
 
   @state()
   isEditingStepName: boolean = false;
+
+  @state()
+  selectedAnchor: Anchor | null = null;
 
   @property()
   anchors: Anchor[] = [];
@@ -53,7 +63,9 @@ export class ArazzoStep extends LitElement {
   }
 
   listenToMatchedPath(e: CustomEvent<string>) {
-    if (this.stepMetadata.id === e.detail) {
+    const paths: string[] = JSON.parse(e.detail);
+
+    if (paths.includes(this.stepMetadata.id)) {
       this.stepMetadata.glow();
       this.requestUpdate();
     }
@@ -207,25 +219,143 @@ export class ArazzoStep extends LitElement {
       .join("");
   }
 
-  renderSchemaContainer(schema) {
+  getSelectedRef(mediaType: MediaType, input: IO, code?: string) {
+    if (input === "output") {
+      return this.stepMetadata.operation.responses.codes
+        .get(code)
+        .content.get(mediaType.name).schema.ref;
+    } else {
+      return this.stepMetadata.operation.requestBody.content.get(mediaType.name)
+        .schema.ref;
+    }
+  }
+
+  getSelectedMediaType(mediaType: MediaType, input: IO, code?: string) {
+    if (input === "output") {
+      return this.stepMetadata.operation.responses.codes
+        .get(code)
+        .content.get(mediaType.name).selectedExample;
+    } else {
+      return this.stepMetadata.operation.requestBody.content.get(mediaType.name)
+        .selectedExample;
+    }
+  }
+
+  renderSchemaContainer(
+    schema: Schema,
+    mediaType: MediaType,
+    input: IO,
+    code?: string
+  ) {
     const constructHoveredProperty = () => {
       if (!this.elements) return html``;
 
       return html`${this.constructProperty()}`;
     };
 
-    return html`
-      <div class="schema-container">
-        <div
-          class="schema-container-overflow"
-          @mousemove="${this.moveOverSchema}"
-          @mouseleave="${this.turnOffElements}"
-        >
-          ${this.renderSchema(schema)}
+    const schemaContainer = [];
+    if (!schema.isPolymorphicSchema()) {
+      schemaContainer.push(html`
+        <div class="schema-container">
+          <div
+            class="schema-container-overflow"
+            @mousemove="${this.moveOverSchema}"
+            @mouseleave="${this.turnOffElements}"
+          >
+            ${this.renderSchema(schema.schema)}
+          </div>
+          <div class="hovered-property">${constructHoveredProperty()}</div>
         </div>
-        <div class="hovered-property">${constructHoveredProperty()}</div>
-      </div>
-    `;
+      `);
+    }
+
+    if (
+      mediaType.examples &&
+      mediaType.examples.length > 0 &&
+      !schema.isPolymorphicSchema()
+    ) {
+      // ! how tf do we handle nested & nested types? Hopefully it doesn't blow this up
+      schemaContainer.push(html` <h6 class="polymorphic-ref-title">
+          ${insertSpaces("Examples")}
+        </h6>
+        ${mediaType.examples.map((example: string) => {
+          return html`
+            <sl-menu-item
+              class="${this.getSelectedMediaType(mediaType, input, code) ===
+              example
+                ? "selected-media-type"
+                : ""}"
+              @click=${(e: any) => {
+                if (input === "output") {
+                  this.stepMetadata.operation.responses.codes
+                    .get(code)
+                    .content.get(mediaType.name).selectedExample = example;
+                } else {
+                  this.stepMetadata.operation.requestBody.content.get(
+                    mediaType.name
+                  ).selectedExample = example;
+                }
+                sendEvent<UpdateStepMetadataType>(
+                  this,
+                  UpdateStepMetadataEvent,
+                  {
+                    workflowID: this.workflowID,
+                    stepMetadata: this.stepMetadata,
+                  }
+                );
+                this.requestUpdate();
+                e.stopPropagation();
+              }}
+            >
+              ${example}
+            </sl-menu-item>
+          `;
+        })}`);
+    }
+
+    if (schema.isPolymorphicSchema()) {
+      schemaContainer.push(html`<h6 class="polymorphic-ref-title">
+          ${insertSpaces("Refs")}
+        </h6>
+        ${schema.oneOf?.map((schema: Schema) => {
+          return html`
+            <sl-menu-item
+              class="${this.getSelectedRef(mediaType, input, code) ===
+              schema.ref
+                ? "selected-ref"
+                : ""}"
+              @click=${() => {
+                if (input === "output") {
+                  this.stepMetadata.operation.responses.codes
+                    .get(code)
+                    .content.get(mediaType.name).schema.ref = schema.ref;
+                } else {
+                  this.stepMetadata.operation.requestBody.content.get(
+                    mediaType.name
+                  ).schema.ref = schema.ref;
+                }
+
+                sendEvent<UpdateStepMetadataType>(
+                  this,
+                  UpdateStepMetadataEvent,
+                  {
+                    workflowID: this.workflowID,
+                    stepMetadata: this.stepMetadata,
+                  }
+                );
+                this.requestUpdate();
+              }}
+            >
+              ${schema.ref}
+              <sl-menu slot="submenu">
+                ${this.renderSchemaContainer(schema, mediaType, input, code)}
+              </sl-menu>
+            </sl-menu-item>
+          `;
+        })} `);
+    }
+
+    return schemaContainer;
   }
 
   renderHeader() {
@@ -297,7 +427,11 @@ export class ArazzoStep extends LitElement {
         ?pulse=${anchors
           .map((anchor: Anchor) => anchor.expressionValue != "")
           .includes(true)}
-        class="anchor-badge"
+        class="anchor-badge ${anchors
+          .map((anchor: Anchor) => anchor.id)
+          .includes(this.selectedAnchor?.id)
+          ? "selected-anchor"
+          : ""}"
         data-property-list=${`[${anchors
           .map((anchor: Anchor, num: number) => {
             return `${anchor.id}${num !== anchors.length - 1 ? "," : ""}`;
@@ -307,6 +441,31 @@ export class ArazzoStep extends LitElement {
         ${anchors.length}
       </sl-badge>
     `;
+  }
+
+  renderOneOfRefsFromMediaContent(content: Map<string, MediaType>) {
+    const oneOfRefs = normalizeMap(content)
+      .map((content: MediaType) => {
+        if (content.schema.oneOf?.length > 0) {
+          return content.schema.ref;
+        }
+        return undefined;
+      })
+      .filter((val: string) => {
+        return val !== undefined && val !== "";
+      });
+
+    return oneOfRefs.length > 0
+      ? html`
+          <p slot="suffix">
+            ${oneOfRefs
+              .map((ref: string) =>
+                Schema.RenderRefWithoutComponentsSchemaPrefix(ref)
+              )
+              .join(",")}
+          </p>
+        `
+      : "";
   }
 
   renderBody() {
@@ -372,6 +531,7 @@ export class ArazzoStep extends LitElement {
               <sl-menu
                 slot="submenu"
                 @click=${() => {
+                  console.log("clicked mediatype");
                   let newAnchor: Anchor;
                   if (input === "input") {
                     newAnchor = new Anchor(
@@ -396,12 +556,16 @@ export class ArazzoStep extends LitElement {
                     this.stepMetadata.operation.method,
                     this.stepMetadata.id
                   );
-                  console.log("SEND EVENT");
 
                   sendEvent<Anchor>(this, SelectingAnchorEvent, newAnchor);
                 }}
               >
-                ${this.renderSchemaContainer(mediaType.resolvedSchema)}
+                ${this.renderSchemaContainer(
+                  mediaType.schema,
+                  mediaType,
+                  input,
+                  code
+                )}
               </sl-menu>
             </sl-menu-item>
           `;
@@ -411,9 +575,13 @@ export class ArazzoStep extends LitElement {
 
     const renderRequestBody = () => {
       const requestBody = this.stepMetadata.operation?.requestBody;
+
+      if (!requestBody || !requestBody.content) return html``;
       if (requestBody?.content.size === 0) return html``;
 
-      if (!requestBody) return html``;
+      const renderOneOfRefs = this.renderOneOfRefsFromMediaContent(
+        requestBody.content
+      );
 
       return html`
         <sl-menu-item>
@@ -424,7 +592,7 @@ export class ArazzoStep extends LitElement {
           >
           </sl-icon>
           <p>Request Body</p>
-          ${this.hasPipeInputAnchor("requestBodyProperty")}
+          ${renderOneOfRefs} ${this.hasPipeInputAnchor("requestBodyProperty")}
           ${renderMediaTypeMenu(requestBody?.content, "", "input")}
         </sl-menu-item>
       `;
@@ -454,11 +622,17 @@ export class ArazzoStep extends LitElement {
       })
       .filter((code: ResponseCode) => code.content.size > 0);
 
+    // only handle oneOf
+
     const renderOutputSection = () => {
       const renderResponeBody = () => {
         return html`
           <sl-menu>
             ${codes.map((code: ResponseCode) => {
+              const renderOneOfRefs = this.renderOneOfRefsFromMediaContent(
+                code.content
+              );
+
               return html`
                 <sl-menu-item
                   class="response-code"
@@ -469,6 +643,7 @@ export class ArazzoStep extends LitElement {
                   }}
                 >
                   <sl-badge>${code.name}</sl-badge>
+                  ${renderOneOfRefs}
                   ${renderMediaTypeMenu(code.content, code.name, "output")}
                   ${this.hasPipeInputAnchor("responseBodyProperty")}
                 </sl-menu-item>
@@ -516,12 +691,9 @@ export class ArazzoStep extends LitElement {
   }
 
   render() {
-    // console.log(
-    //   this.stepMetadata.pathName,
-    //   this.stepMetadata.operation.method,
-    //   this.anchors
-    // );
     this.setPosition();
+
+    console.log(this.stepMetadata);
 
     return html`
       <figure class="arazzo-step-container ${this.handleGlow()}">

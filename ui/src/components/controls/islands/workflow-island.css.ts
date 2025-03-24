@@ -27,6 +27,7 @@ export default css`
     border-top-left-radius: 5px;
     /* overflow-y: hidden; */
 
+    box-shadow: 0 0 10px 0.2px var(--primary-color);
     transition: all 0.2s;
   }
 

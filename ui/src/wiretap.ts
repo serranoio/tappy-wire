@@ -43,11 +43,9 @@ import {
   WiretapStaticChannel,
 } from "@/model/constants";
 import {
-  MockBoard,
   MockBoardKey,
   PathsKey,
   TrafficControlChannel,
-  TrafficControlPath,
   TrafficControlStore,
 } from "./model/traffic-control";
 import { mock } from "node:test";
@@ -56,6 +54,7 @@ import {
   SendTransactionToMockboard,
   sendEvent,
 } from "./model/traffic-control-utils";
+import { MockBoard } from "./model/traffic-control/mockboard";
 
 declare global {
   interface Window {

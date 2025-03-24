@@ -13,6 +13,8 @@ export default css`
     /* border-top-left-radius: 5px; */
     /* border-top-right-radius: 5px; */
     border-bottom-right-radius: 5px;
+
+    box-shadow: 0 0 10px 0.2px var(--primary-color);
   }
 
   .mock-monitor-island-title {

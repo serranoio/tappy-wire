@@ -2,9 +2,7 @@ import { insertSpaces } from "@/model/traffic-control-utils";
 import { html } from "lit";
 import { TrafficControlComponent } from "../traffic-control.component";
 
-export const renderProxyMonitorIsland = (
-  thisComponent: TrafficControlComponent
-) => {
+export function renderProxyMonitorIsland() {
   return html`
     <aside class="monitor-island">
       <sl-tooltip content="">
@@ -13,4 +11,4 @@ export const renderProxyMonitorIsland = (
       </sl-tooltip>
     </aside>
   `;
-};
+}

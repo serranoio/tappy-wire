@@ -17,13 +17,13 @@ const (
 )
 
 type WorkflowMetadata struct {
-	WorkflowName  string                 `json:"workflowName"`
-	WorkflowID    string                 `json:"workflowID"`
-	IsActivated   bool                   `json:"isActivated"`
-	StepMetadatas []*shared.StepMetadata `json:"stepMetadatas"`
-	Pipes         []*shared.Pipe         `json:"pipes"`
-	Summary       string                 `json:"summary"`
-	Description   string                 `json:"description"`
+	WorkflowName  string          `json:"workflowName"`
+	WorkflowID    string          `json:"workflowID"`
+	IsActivated   bool            `json:"isActivated"`
+	StepMetadatas []*StepMetadata `json:"stepMetadatas"`
+	Pipes         []*shared.Pipe  `json:"pipes"`
+	Summary       string          `json:"summary"`
+	Description   string          `json:"description"`
 }
 
 type DeleteWorkflowPayload struct {
@@ -42,7 +42,7 @@ func NewWorkflowMetadataFromPayload(workflowMetadata WorkflowMetadata) *shared.W
 	return &shared.WorkflowMetadata{
 		WorkflowID:    &workflowMetadata.WorkflowID,
 		IsActivated:   &workflowMetadata.IsActivated,
-		StepMetadatas: formStepMap(workflowMetadata.StepMetadatas),
+		StepMetadatas: make(map[string]*shared.StepMetadata),
 		Summary:       &workflowMetadata.Summary,
 		Description:   &workflowMetadata.Description,
 		WorkflowName:  &workflowMetadata.WorkflowName,
@@ -116,7 +116,7 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 
 	ss.mockboard.WorkflowMetadata[id].StepMetadatas = make(map[string]*shared.StepMetadata)
 	for _, stepMetadata := range workflowPayload.WorkflowMetadata.StepMetadatas {
-		ss.mockboard.WorkflowMetadata[id].StepMetadatas[*stepMetadata.ID] = stepMetadata
+		ss.mockboard.WorkflowMetadata[id].StepMetadatas[*stepMetadata.ID] = stepMetadata.NewStepMetadata()
 	}
 
 	ss.mockboard.WorkflowMetadata[id].IsActivated = &workflowPayload.WorkflowMetadata.IsActivated

@@ -10,6 +10,7 @@ export const getIdsFromAnchorBadges = (anchorBadge: HTMLElement): string[] => {
   return ids;
 };
 
+/// does this comment appear? when I hover over?
 export const findMiddle = (rect, value, measure) => {
   return rect[value] - rect[measure] / 2;
 };

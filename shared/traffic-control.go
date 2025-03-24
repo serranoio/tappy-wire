@@ -16,12 +16,13 @@ type Position struct {
 }
 
 type StepMetadata struct {
-	ID          *string  `json:"id"`
-	Description *string  `json:"description"`
-	StepName    *string  `json:"stepName"`
-	OperationID *string  `json:"operationID"`
-	Position    Position `json:"position"`
-	PathName    *string  `json:"pathName"`
+	ID          *string    `json:"id"`
+	Description *string    `json:"description"`
+	StepName    *string    `json:"stepName"`
+	OperationID *string    `json:"operationID"`
+	Position    Position   `json:"position"`
+	PathName    *string    `json:"pathName"`
+	Operation   *Operation `json:"operation"`
 }
 
 func (sm *StepMetadata) getOperation(doc *v3.Document) *v3.Operation {
@@ -57,12 +58,26 @@ type Variable struct {
 	ReceiverVariables []*Variable `jsons:"receiverVariables"`
 }
 
+// this works with paths with anything in the front.
 func convertPathToGlob(path string) glob.Glob {
+	path = "*" + path
+
 	re := regexp.MustCompile(`\{[^}]*\}`)
 
 	path = re.ReplaceAllString(path, "*")
 
 	return glob.MustCompile(path)
+}
+
+func (m *Mockboard) IsRequestOnMockboard(requestPath string) bool {
+	for _, workflow := range m.GetActivatedWorkflows() {
+		_, _, foundStep := workflow.MatchRequestedPath(requestPath)
+		if foundStep {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (wfm *WorkflowMetadata) getStepMetadataAnchors(stepID string) ([]*Anchor, bool) {

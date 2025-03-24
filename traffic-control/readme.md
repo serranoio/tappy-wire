@@ -1,8 +1,21 @@
-## Not yet
+## Fuck it
+
+Not supporting
 
 - fuck Security
 - fuck supporting other content types than applicaion.json
 - fuck workflow level inputs
+- Not supporting headers
+
+### Parmeters
+
+- Parameters with media types (why the fuck would you design an endpoint this way? xD TELL ME YOUR USE CASE. RIGHT NOW)
+- PathItem level Parameters
+- Parameters with Polymorphic Schemas
+
+### Media Types
+
+- Only parses out MediaType level examples
 
 ## To do list
 

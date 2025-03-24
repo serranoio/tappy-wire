@@ -1,669 +1,529 @@
 package trafficControl
 
 import (
-	"fmt"
-	"io"
-	"log/slog"
-	"net/http"
-	"net/url"
-	"os"
 	"testing"
 
 	"github.com/pb33f/libopenapi"
-	"github.com/pb33f/libopenapi/index"
-	"gopkg.in/yaml.v3"
+	"github.com/pb33f/wiretap/shared"
 )
 
 var doc = `
-openapi: 3.0.3
+openapi: 3.0.0
 info:
-  title: Swagger Petstore - OpenAPI 3.0
-  description: Modifies the standard Petstore example to illustrate a workflow in which coupons are discovered and then used in an order.
-  license:
-    name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Wild West API
   version: 1.0.0
-tags:
-  - name: pet
-    description: Everything about your Pets
-    externalDocs:
-      description: Find out more
-      url: http://swagger.io
-  - name: store
-    description: Access to Petstore orders
-    externalDocs:
-      description: Find out more about our store
-      url: http://swagger.io
+  description: Howdy partner! This here's the Wild West API, where we manage our saloon operations and keep track of our cowboys.
+  contact:
+    name: Sheriff API
+    email: sheriff@wildwest.com
+    url: https://wildwest.com
+servers:
+  - url: https://api.wildwest.com/v1
+    description: Main saloon server
 paths:
-  /pet:
-    put:
+  /saloon/serve:
+    get:
+      summary: Serve a drink at the saloon
+      operationId: serveDrink
+      responses:
+        "200":
+          description: Serves you a mocktail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mojito"
+        "201":
+          description: Serves you a drink (alternative response)
+          content:
+            application/json:
+              oneOf:
+                - $ref: "#/components/schemas/Mojito"
+                - $ref: "#/components/schemas/Mocktail"
+              examples:
+                mocktailExample:
+                  value:
+                    id: "mocktail124"
+                    spirit: "Little Saints St. Ember"
+                    rocks: false
+                    glass: "Collins"
+  /saloon/serve/{id}:
+    post:
+      summary: Refill a glass
+      operationId: refillGlass
+      description: Refills the glass with the specified drink for a given ID.
       tags:
-        - pet
-      summary: Update an existing pet
-      description: Update an existing pet by Id
-      operationId: updatePet
+        - Saloon
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: The ID of the drink to be refilled.
+          schema:
+            type: string
+            example: "mocktail123"
+      responses:
+        "200":
+          description: Serves you a mocktail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mocktail"
+  /saloon/enter:
+    post:
+      summary: Enter the saloon
+      operationId: enterSaloon
       requestBody:
-        description: Update an existent pet in the store
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Pet'
-          application/xml:
-            schema:
-              $ref: '#/components/schemas/Pet'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Pet'
         required: true
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pet'          
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/Pet'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Pet not found
-        '405':
-          description: Validation exception
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-    post:
-      tags:
-        - pet
-      summary: Add a new pet to the store
-      description: Add a new pet to the store
-      operationId: addPet
-      requestBody:
-        description: Create a new pet in the store
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Pet'
-          application/xml:
-            schema:
-              $ref: '#/components/schemas/Pet'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Pet'
+              $ref: "#/components/schemas/Cowboy"
+      responses:
+        "200":
+          description: Successfully entered the saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid cowboy credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /saloon/leave:
+    post:
+      summary: Leave the saloon
+      operationId: leaveSaloon
+      requestBody:
         required: true
-      responses:
-        '200':
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pet'          
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/Pet'
-        '405':
-          description: Invalid input
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-  /pet/findByStatus:
-    get:
-      tags:
-        - pet
-      summary: Finds Pets by status
-      description: Multiple status values can be provided with comma separated strings
-      operationId: findPetsByStatus
-      parameters:
-        - name: status
-          in: query
-          description: Status values that need to be considered for filter
-          required: false
-          explode: true
-          schema:
-            type: string
-            default: available
-            enum:
-              - available
-              - pending
-              - sold
-        - name: page
-          in: query
-          description: Which page of results to display. First page is 1.
-          required: true
-          schema:
-            type: integer
-            format: int32
-        - name: pageSize
-          in: query
-          description: Number of results to display per page.
-          required: false
-          schema:
-            type: integer
-            format: int32
-            default: 10
-      responses:
-        '200':
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pet'          
-            application/xml:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pet'
-        '400':
-          description: Invalid status value
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-  /pet/findByTags:
-    get:
-      tags:
-        - pet
-      summary: Finds Pets by tags
-      description: Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
-      operationId: findPetsByTags
-      parameters:
-        - name: tags
-          in: query
-          description: Tags to filter by
-          required: false
-          explode: true
-          schema:
-            type: array
-            items:
-              type: string
-      responses:
-        '200':
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pet'          
-            application/xml:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pet'
-        '400':
-          description: Invalid tag value
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-  /pet/{petId}:
-    get:
-      tags:
-        - pet
-      summary: Find pet by ID
-      description: Returns a single pet
-      operationId: getPetById
-      parameters:
-        - name: petId
-          in: path
-          description: ID of pet to return
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pet'          
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/Pet'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Pet not found
-      security:
-        - api_key: []
-        - petstore_auth:
-            - write:pets
-            - read:pets
-    post:
-      tags:
-        - pet
-      summary: Updates a pet in the store with form data
-      description: ''
-      operationId: updatePetWithForm
-      parameters:
-        - name: petId
-          in: path
-          description: ID of pet that needs to be updated
-          required: true
-          schema:
-            type: integer
-            format: int64
-        - name: name
-          in: query
-          description: Name of pet that needs to be updated
-          schema:
-            type: string
-        - name: status
-          in: query
-          description: Status of pet that needs to be updated
-          schema:
-            type: string
-      responses:
-        '405':
-          description: Invalid input
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-    delete:
-      tags:
-        - pet
-      summary: Deletes a pet
-      description: delete a pet
-      operationId: deletePet
-      parameters:
-        - name: api_key
-          in: header
-          description: ''
-          required: false
-          schema:
-            type: string
-        - name: petId
-          in: path
-          description: Pet id to delete
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '400':
-          description: Invalid pet value
-      security:
-        - petstore_auth:
-            - write:pets
-            - read:pets
-  /pet/{petId}/coupons:
-    get:
-      tags:
-        - pet
-      summary: Find a coupon available for a pet
-      description: Returns a coupon available for the pet, if applicable
-      operationId: getPetCoupons
-      parameters:
-        - name: petId
-          in: path
-          description: ID of pet with available coupons
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: successful operation
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Coupon'          
-            application/xml:
-              schema:
-                $ref: '#/components/schemas/Coupon'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Pet not found or coupon not available
-      security:
-        - api_key: []
-        - petstore_auth:
-            - read:pets
-  /store/order:
-    post:
-      tags:
-        - store
-      summary: Place an order for a pet
-      description: Place a new order in the store
-      operationId: placeOrder
-      requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Order'
-          application/xml:
-            schema:
-              $ref: '#/components/schemas/Order'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Order'
+              $ref: "#/components/schemas/Cowboy"
       responses:
-        '200':
-          description: successful operation
+        "200":
+          description: Successfully left the saloon
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          description: Invalid input
-  /store/order/{orderId}:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Cowboy not found in saloon
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /wanted/poster:
+    post:
+      summary: Create a wanted poster
+      operationId: createWantedPoster
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WantedPoster"
+      responses:
+        "200":
+          description: Wanted poster created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid poster details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /wanted/poster/{name}:
     get:
-      tags:
-        - store
-      summary: Find purchase order by ID
-      description: For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions.
-      operationId: getOrderById
+      summary: Retrieve a wanted poster for a specific outlaw
+      operationId: getWantedPosterByName
       parameters:
-        - name: orderId
-          in: path
-          description: ID of order that needs to be fetched
+        - in: path
+          name: name
           required: true
+          description: The name of the outlaw.
           schema:
-            type: integer
-            format: int64
+            type: string
+            example: "Black Jack McCoy"
       responses:
-        '200':
-          description: successful operation
+        "200":
+          description: Successfully retrieved the wanted poster details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Order'          
-            application/xml:
+                $ref: "#/components/schemas/WantedPoster"
+        "404":
+          description: Outlaw not found
+          content:
+            application/json:
               schema:
-                $ref: '#/components/schemas/Order'
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Order not found
-    delete:
-      tags:
-        - store
-      summary: Delete purchase order by ID
-      description: For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
-      operationId: deleteOrder
+                $ref: "#/components/schemas/Error"
+
+  /saloon/serve/{id}/to-wanted-poster:
+    post:
+      summary: Create a wanted poster from the served drink details
+      operationId: createWantedPosterFromDrink
       parameters:
-        - name: orderId
-          in: path
-          description: ID of the order that needs to be deleted
+        - in: path
+          name: id
           required: true
+          description: The ID of the drink served (used to associate with the cowboy).
           schema:
-            type: integer
-            format: int64
+            type: string
+            example: "mocktail123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cowboyName:
+                  type: string
+                  description: The cowboy's name derived from the served drink
+                  example: "Buck 'The Kid' Anderson"
+                crimes:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - "bank-robbery"
+                      - "horse-theft"
+                      - "saloon-brawl"
+                      - "train-heist"
+                reward:
+                  type: number
+                  description: Reward amount in gold coins
+                  example: 1000
       responses:
-        '400':
-          description: Invalid ID supplied
-        '404':
-          description: Order not found
+        "200":
+          description: Successfully created a wanted poster using drink details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid drink details or cowboy info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
-    Order:
+    Mocktail:
       type: object
       properties:
         id:
-          type: integer
-          format: int64
-          example: 10
-        petId:
-          type: integer
-          format: int64
-          example: 198772
-        quantity:
-          type: integer
-          format: int32
-          example: 7
-        status:
           type: string
-          description: Order Status
-          example: approved
-          enum:
-            - placed
-            - approved
-            - delivered
-        complete:
+          description: Drink ID
+        spirit:
+          type: string
+          description: Non-alcoholic spirit in the drink
+          example: "Little Saints St. Ember"
+        rocks:
           type: boolean
-        couponCode:
+          description: Mocktail served on rocks
+        glass:
           type: string
-          example: "SUMMERSALE"
-      xml:
-        name: order
-    Category:
+          description: Shape of glass
+          enum: ["Martini", "Highball", "Collins", "Rocks"]
+
+    Mojito:
       type: object
       properties:
         id:
-          type: integer
-          format: int64
-          example: 1
-        name:
           type: string
-          example: Dogs
-      xml:
-        name: category
-    Tag:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
+          description: Drink ID
+        rum:
+          type: boolean
+          description: Includes rum
+        rocks:
+          type: boolean
+          description: Mocktail served on rocks
+        glass:
           type: string
-      xml:
-        name: tag
-    Pet:
-      required:
-        - name
-        - price
-        - photoUrls
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-          example: 10
-        name:
-          type: string
-          example: doggie
-        category:
-          $ref: '#/components/schemas/Category'
-        photoUrls:
+          description: Shape of glass
+          enum: ["Highball", "Collins"]
+        fruit:
           type: array
-          xml:
-            wrapped: true
           items:
             type: string
-            xml:
-              name: photoUrl
-        price:
-          type: number
-        tags:
+            enum: ["Orange Slices", "Strawberries", "Lime"]
+        herbs:
           type: array
-          xml:
-            wrapped: true
           items:
-            $ref: '#/components/schemas/Tag'
-        status:
+            type: string
+            enum: ["Mint", "Marijuana"]
+
+    Cowboy:
+      type: object
+      required:
+        - name
+        - horse
+      properties:
+        name:
           type: string
-          description: pet status in the store
-          enum:
-            - available
-            - pending
-            - sold
-      xml:
-        name: pet
-    ApiResponse:
+          description: The cowboy's name
+          example: "Buck 'The Kid' Anderson"
+        horse:
+          type: string
+          description: The name of their trusty steed
+          example: "Lightning"
+        skills:
+          type: array
+          items:
+            type: string
+            enum:
+              - shooting
+              - lassoing
+              - poker
+              - horseback-riding
+
+    WantedPoster:
+      type: object
+      required:
+        - name
+        - crimes
+      properties:
+        name:
+          type: string
+          description: Name of the outlaw
+          example: "Black Jack McCoy"
+        crimes:
+          type: array
+          items:
+            type: string
+            enum:
+              - bank-robbery
+              - horse-theft
+              - saloon-brawl
+              - train-heist
+        reward:
+          type: number
+          description: Reward amount in gold coins
+          example: 1000
+
+    Response:
       type: object
       properties:
-        code:
-          type: integer
-          format: int32
-        type:
-          type: string
         message:
           type: string
-      xml:
-        name: '##default'
-    Coupon:
+          description: Response message
+          example: "Howdy partner!"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-02-28T14:30:00Z"
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: "SALOON-001"
+        message:
+          type: string
+          description: Error message
+          example: "Partner, that ain't no valid cowboy name!"
+
+`
+
+var specWithJustOneOf = `
+openapi: 3.0.0
+info:
+  title: Wild West API
+  version: 1.0.0
+  description: Howdy partner! This here's the Wild West API, where we manage our saloon operations and keep track of our cowboys.
+  contact:
+    name: Sheriff API
+    email: sheriff@wildwest.com
+    url: https://wildwest.com
+servers:
+  - url: https://api.wildwest.com/v1
+    description: Main saloon server
+paths:
+  /saloon/serve:
+    get:
+      summary: Serve a drink at the saloon
+      operationId: serveDrink
+      responses:
+        "200":
+          description: Serves you a mocktail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mojito"
+        "201":
+          description: Serves you a drink (alternative response)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Mojito"
+                  - $ref: "#/components/schemas/Mocktail"
+              examples:
+                mocktailExamples:
+                  value:
+                      id: "mocktail124"
+                      spirit: "Little Saints St. Ember"
+                      rocks: false
+                      glass: "Collins"
+                mocktailExample:
+                  value:
+                    id: "mocktail124"
+                    spirit: "Little Saints St. Ember"
+                    rocks: false
+                    glass: "Collins"  
+components:
+  schemas:
+    Mocktail:
       type: object
       properties:
         id:
-          type: integer
-          format: int64
-          example: 10
-        description:
           type: string
-          example: "Summer Sale - 10% off!"
-        couponCode:
+          description: Drink ID
+        spirit:
           type: string
-          example: "SUMMERSALE"
-      xml:
-        name: coupon
-  requestBodies:
-    Pet:
-      description: Pet object that needs to be added to the store
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Pet'
-        application/xml:
-          schema:
-            $ref: '#/components/schemas/Pet'
-  securitySchemes:
-    petstore_auth:
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: https://petstore3.swagger.io/oauth/authorize
-          scopes:
-            write:pets: modify pets in your account
-            read:pets: read your pets
-    api_key:
-      type: apiKey
-      name: api_key
-      in: header`
+          description: Non-alcoholic spirit in the drink
+          example: "Little Saints St. Ember"
+        rocks:
+          type: boolean
+          description: Mocktail served on rocks
+        glass:
+          type: string
+          description: Shape of glass
+          enum: ["Martini", "Highball", "Collins", "Rocks"]
+    Mojito:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Drink ID
+        rum:
+          type: boolean
+          description: Includes rum
+        rocks:
+          type: boolean
+          description: Mocktail served on rocks
+        glass:
+          type: string
+          description: Shape of glass
+          enum: ["Highball", "Collins"]
+        fruit:
+          type: array
+          items:
+            type: string
+            enum: ["Orange Slices", "Strawberries", "Lime"]
+        herbs:
+          type: array
+          items:
+            type: string
+            enum: ["Mint", "Marijuana"]
+    Cowboy:
+      type: object
+      required:
+        - name
+        - horse
+      properties:
+        name:
+          type: string
+          description: The cowboy's name
+          example: "Buck 'The Kid' Anderson"
+        horse:
+          type: string
+          description: The name of their trusty steed
+          example: "Lightning"
+        skills:
+          type: array
+          items:
+            type: string
+            enum:
+              - shooting
+              - lassoing
+              - poker
+              - horseback-riding
 
-// read the Digital Ocean OpenAPI Specification from Github.
-func read() []byte {
-	res, err := http.Get("https://raw.githubusercontent.com/digitalocean" +
-		"/openapi/main/specification/DigitalOcean-public.v2.yaml")
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
+    WantedPoster:
+      type: object
+      required:
+        - name
+        - crimes
+      properties:
+        name:
+          type: string
+          description: Name of the outlaw
+          example: "Black Jack McCoy"
+        crimes:
+          type: array
+          items:
+            type: string
+            enum:
+              - bank-robbery
+              - horse-theft
+              - saloon-brawl
+              - train-heist
+        reward:
+          type: number
+          description: Reward amount in gold coins
+          example: 1000
 
-// Index the digital ocean OpenAPI specification
-func digitalOcean() {
+    Response:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Response message
+          example: "Howdy partner!"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-02-28T14:30:00Z"
 
-	// create a root node to unmarshal the spec into.
-	var rootNode yaml.Node
-	_ = yaml.Unmarshal(read(), &rootNode)
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: "SALOON-001"
+        message:
+          type: string
+          description: Error message
+          example: "Partner, that ain't no valid cowboy name!"
+  `
 
-	// create a new config that allows remote lookups.
-	indexConfig := index.CreateOpenAPIIndexConfig()
+// build the document once with the unresolved references, then resolve them, and collect the goods.
 
-	// we're going to check for circular references later, so we don't want to do it now.
-	indexConfig.AvoidCircularReferenceCheck = true
+func testGetAllPaths(docString string) map[string]*shared.PathItem {
 
-	// create a custom logger (optional)
-	indexConfig.Logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelError,
-	}))
-
-	// define the base URL for the remote filesystem.
-	location := "https://raw.githubusercontent.com/digitalocean/openapi/refs/heads/main/specification/DigitalOcean-public.v2.yaml"
-	baseURL, _ := url.Parse(location)
-
-	// set the base URL for the remote filesystem in the config.
-	indexConfig.BaseURL = baseURL
-
-	// create a new rolodex
-	rolodex := index.NewRolodex(indexConfig)
-
-	// set the rolodex root node to the root node of the spec.
-	rolodex.SetRootNode(&rootNode)
-
-	// create a new remote fs and set the config for indexing.
-	remoteFS, _ := index.NewRemoteFSWithConfig(indexConfig)
-
-	// add remote filesystem
-	rolodex.AddRemoteFS(location, remoteFS)
-
-	// index the rolodex
-	indexedErr := rolodex.IndexTheRolodex()
-	if indexedErr != nil {
-		panic(indexedErr)
-	}
-
-	// get all the files!
-	files := remoteFS.GetFiles()
-	fileLen := len(files)
-
-	// check for circular references across the entire document.
-	rolodex.CheckForCircularReferences()
-
-	fmt.Printf("%d files found and %d errors reported. There were %d circular references found.\n",
-		fileLen, len(remoteFS.GetErrors()), len(rolodex.GetCaughtErrors()))
-
-	// extrtact the resolver from the root index.
-	resolver := rolodex.GetRootIndex().GetResolver()
-
-	// print out some interesting information discovered when visiting all the references.
-	fmt.Printf("%d references visited\n", resolver.GetReferenceVisited())
-	fmt.Printf("%d journeys taken\n", resolver.GetJourneysTaken())
-	fmt.Printf("%d index visits\n", resolver.GetIndexesVisited())
-	fmt.Printf("%d relatives seen\n", resolver.GetRelativesSeen())
-}
-
-func testGetAllPaths() map[string]*PathItem {
-
-	d, _ := libopenapi.NewDocument([]byte(doc))
+	d, _ := libopenapi.NewDocument([]byte(docString))
 	docModel, _ := d.BuildV3Model()
 
-	// create a new config that does not allow lookups.
-	indexConfig := index.CreateClosedAPIIndexConfig()
-
-	// create a new rolodex
-	rolodex := index.NewRolodex(indexConfig)
-
-	// * the rolodex is so fucking powerful, what the actual fuck
-	rolodex.SetRootNode(docModel.Index.GetRootNode())
-	rolodex.IndexTheRolodex()
-
-	refrences := rolodex.GetAllReferences()
-
-	rolodex.Resolve()
-
-	resolver := rolodex.GetRootIndex().GetResolver()
-
-	// print out some interesting information discovered when visiting all the references.
-	fmt.Printf("%d errors repored\n", len(rolodex.GetCaughtErrors()))
-	fmt.Printf("%d references visited\n", resolver.GetReferenceVisited())
-	fmt.Printf("%d journeys taken\n", resolver.GetJourneysTaken())
-	fmt.Printf("%d index visits\n", resolver.GetIndexesVisited())
-	fmt.Printf("%d relatives seen\n", resolver.GetRelativesSeen())
-
-	fmt.Println(refrences)
-
-	resolvedSchemas := make(map[string]string)
-
-	return formPathsForMockIsland(&docModel.Model, rolodex, resolvedSchemas)
+	return formPathsForMockIsland(&docModel.Model)
 }
 
 func TestGetAllPaths(t *testing.T) {
-	digitalOcean()
 
-	testGetAllPaths()
+	testGetAllPaths(doc)
 
+}
+
+func TestOneOf(t *testing.T) {
+
+	testGetAllPaths(specWithJustOneOf)
 }

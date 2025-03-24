@@ -9,22 +9,7 @@ import { SlMenuItem } from "@shoelace-style/shoelace";
 import { html } from "lit";
 import { TrafficControlComponent } from "../traffic-control.component";
 
-export const renderHttpMethods = (pathItem: PathItem) => {
-  return html`
-    ${httpMethods.map((method: string) => {
-      if (isObjectEmpty(pathItem[method])) {
-        return html``;
-      }
-      return html`
-        <sl-menu-item value="${method}">
-          <sl-badge size="small" class="${method}-color">${method}</sl-badge>
-        </sl-menu-item>
-      `;
-    })}
-  `;
-};
-
-export const renderPathsIsland = (thisComponent: TrafficControlComponent) => {
+export function renderPathsIsland(this: TrafficControlComponent) {
   return html`
     <aside class="paths-island">
       <sl-tooltip>
@@ -32,48 +17,38 @@ export const renderPathsIsland = (thisComponent: TrafficControlComponent) => {
         <h4 class="island-titles monitor-island-title">steps</h4>
       </sl-tooltip>
       <ul class="path-items-list">
-        ${thisComponent.pathItems.map((pathItem: PathItem) => {
-          return html`
-            <li class="path-item">
-              <sl-dropdown>
-                <p slot="trigger">${pathItem.name}</p>
-                <sl-menu
-                  @sl-select=${(e: SlMenuItem) => {
-                    if (!thisComponent.selectedWorkflow) {
-                      notify(
-                        "Please select a workflow!",
-                        "warning",
-                        "info-circle",
-                        3000
-                      );
+        ${this.pathItems.map((pathItem: PathItem) => {
+          return pathItem.renderPathItemInPathsIsland(
+            (e: CustomEvent<SlMenuItem>) => {
+              if (!this.selectedWorkflow) {
+                notify(
+                  "Please select a workflow!",
+                  "warning",
+                  "info-circle",
+                  3000
+                );
 
-                      return;
-                    }
+                return;
+              }
 
-                    const operation = e.detail.item.value;
+              const operation = e.detail.item.value;
 
-                    const operationSelected = pathItem[operation] as Operation;
+              const operationSelected = pathItem[operation] as Operation;
 
-                    const stepMetadata = thisComponent.mockBoard.addNewStep(
-                      thisComponent.selectedWorkflow.workflowID,
-                      pathItem,
-                      operationSelected.operationId,
-                      thisComponent,
-                      thisComponent._bus
-                    );
+              const stepMetadata = this.mockBoard.addNewStep(
+                this.selectedWorkflow.workflowID,
+                pathItem,
+                operationSelected.operationId,
+                this,
+                this._bus
+              );
 
-                    thisComponent.steps.push(stepMetadata);
+              this.steps.push(stepMetadata);
 
-                    thisComponent.requestUpdate();
-
-                    // we are going to construct the step here and add it to the steps
-                  }}
-                >
-                  ${renderHttpMethods(pathItem)}
-                </sl-menu>
-              </sl-dropdown>
-            </li>
-          `;
+              this.requestUpdate();
+              // we are going to construct the step here and add it to the steps
+            }
+          );
         })}
       </ul>
       <div class="path-island-control">
@@ -81,4 +56,4 @@ export const renderPathsIsland = (thisComponent: TrafficControlComponent) => {
       </div>
     </aside>
   `;
-};
+}

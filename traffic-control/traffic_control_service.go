@@ -74,14 +74,6 @@ func NewTrafficControlService(document libopenapi.Document) *TrafficControlServi
 	tcs.document = document
 	tcs.docModel = &m.Model
 
-	indexConfig := index.CreateClosedAPIIndexConfig()
-	// create a new rolodex
-	rolodex := index.NewRolodex(indexConfig)
-	// * the rolodex is so fucking powerful, what the actual fuck
-	rolodex.SetRootNode(tcs.docModel.Index.GetRootNode())
-	rolodex.IndexTheRolodex()
-	tcs.rolodex = rolodex
-
 	tcs.resolvedSchemas = make(map[string]string)
 
 	mockboard, err := setupMockboard()

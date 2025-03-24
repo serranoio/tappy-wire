@@ -1,6 +1,11 @@
 import { css } from "lit";
 
 export default css`
+  .polymorphic-ref-title {
+    font-size: 10px;
+    color: var(--font-color);
+  }
+
   * {
     margin: 0;
     padding: 0;
@@ -289,5 +294,24 @@ export default css`
 
   .indent {
     margin-left: 16px;
+  }
+
+  .anchor-badge {
+    z-index: 99999;
+  }
+
+  .selected-anchor::part(base) {
+    box-shadow: 0 0 10px 0.2px var(--primary-color);
+    transform: translateY(-2px);
+  }
+
+  .selected-ref::part(base) {
+    background-color: var(--primary-color);
+    background-color: color-mix(in srgb, var(--primary-color), black 30%);
+  }
+
+  .selected-media-type::part(base) {
+    background-color: var(--primary-color);
+    background-color: color-mix(in srgb, var(--primary-color), black 30%);
   }
 `;

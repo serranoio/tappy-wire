@@ -5,6 +5,7 @@ package har
 
 import (
 	"fmt"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pb33f/harhar"
 )

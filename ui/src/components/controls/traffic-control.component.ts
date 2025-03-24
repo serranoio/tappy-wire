@@ -10,14 +10,11 @@ import trafficControlCss from "./traffic-control.css";
 import {
   GetAllPathsCommand,
   GetWorkflows,
-  MockBoard,
   MockBoardKey,
   PathsKey,
   Pipe,
   Anchor,
-  StepMetadata,
   TrafficControlStore,
-  WorkflowMetadata,
 } from "@/model/traffic-control";
 import { GetBus } from "@pb33f/ranch";
 import { WiretapChannel, WiretapReportChannel } from "@/model/constants";
@@ -39,7 +36,6 @@ import {
   getIdsFromAnchorBadges,
   renderAllPipes,
 } from "./pipe/anchor-badge";
-import { renderWorkflowIsland } from "./islands/workflow-island";
 import workflowIslandCss from "./islands/workflow-island.css";
 import { renderPathsIsland } from "./islands/paths-island";
 import pathsIslandCss from "./islands/paths-island.css";
@@ -55,6 +51,10 @@ import { HttpTransaction } from "@/model/http_transaction";
 import { Message } from "@/model/message";
 import { styleMap } from "lit/directives/style-map.js";
 import { HttpTransactionViewComponent } from "../transaction/transaction-view";
+import { MockBoard } from "@/model/traffic-control/mockboard";
+import { StepMetadata } from "@/model/traffic-control/step-metadata";
+import { WorkflowMetadata } from "@/model/traffic-control/workflow-metadata";
+import { renderWorkflowIsland } from "./islands/workflow-island";
 
 @customElement("traffic-control")
 export class TrafficControlComponent extends LitElement {
@@ -197,6 +197,7 @@ export class TrafficControlComponent extends LitElement {
     });
 
     this._controlsStore.subscribe(PathsKey, (pathItems: PathItem[]) => {
+      console.log(pathItems);
       this.pathItems = pathItems;
 
       this.mockBoard.setOperationsInSteps(this.pathItems);
@@ -519,6 +520,7 @@ export class TrafficControlComponent extends LitElement {
         ${this.steps.map((step: StepMetadata) => {
           return html`
             <arazzo-step
+              .selectedAnchor=${this.selectedAnchor}
               .anchors=${this.pipes.flatMap((pipe: Pipe) =>
                 step.doesStepContainAnchors(pipe)
               )}
@@ -580,13 +582,13 @@ export class TrafficControlComponent extends LitElement {
   render() {
     this.mockBoard.debug(false, false);
 
-    // this.attachMouseMoveEventListener();
-
     return html`
       ${renderAllPipes(this.pipes, this.renderRoot)}
       ${this.renderSelectedPipe()} ${this.renderMockBoardSection()}
-      ${renderWorkflowIsland(this)} ${renderProxyMonitorIsland(this)}
-      ${renderPathsIsland(this)} ${this.renderSteps()}
+      ${renderWorkflowIsland.bind(this)()} ${renderProxyMonitorIsland.bind(
+      this
+    )()}
+      ${renderPathsIsland.bind(this)()} ${this.renderSteps()}
       ${renderPipeBankIsland(this)} ${renderMockMonitorIsland(this)}
       <sl-dialog id="mock-monitor-dialog" class="dialog-overview">
         <div class="dialog-container">

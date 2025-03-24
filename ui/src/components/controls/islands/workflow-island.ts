@@ -1,22 +1,19 @@
-import { MockBoard, WorkflowMetadata } from "@/model/traffic-control";
 import { html } from "lit";
 import { TrafficControlComponent } from "../traffic-control.component";
 import { insertSpaces } from "@/model/traffic-control-utils";
+import { WorkflowMetadata } from "@/model/traffic-control/workflow-metadata";
 
-export const renderWorkflowNameOnEmpty = (name: string, id: string) => {
-  return name?.length === 0 ? id : name;
-};
-export const renderName = (
+export function renderName(
+  this: TrafficControlComponent,
   name: string,
-  key: string,
-  thisComponent: TrafficControlComponent
-) => {
+  key: string
+) {
   if (
-    thisComponent.isEditingWorkflowName.id !== key ||
-    thisComponent.isEditingWorkflowName.id.length === 0 ||
-    !thisComponent.isEditingWorkflowName.fromIsland
+    this.isEditingWorkflowName.id !== key ||
+    this.isEditingWorkflowName.id.length === 0 ||
+    !this.isEditingWorkflowName.fromIsland
   )
-    return html` <p>${renderWorkflowNameOnEmpty(name, key)}</p> `;
+    return html`${this.selectedWorkflow.getWorkflowName()}`;
 
   return html`
     <sl-input
@@ -24,37 +21,34 @@ export const renderName = (
       size="small"
       value=${name}
       @sl-change=${(e) => {
-        const workflow = thisComponent.mockBoard.workflowMetadatas.get(key);
+        const workflow = this.mockBoard.workflowMetadatas.get(key);
         workflow.workflowName = e.target.value;
 
-        thisComponent.mockBoard.updateWorkflow(
-          workflow.workflowID,
-          thisComponent._bus
-        );
+        this.mockBoard.updateWorkflow(workflow.workflowID, this._bus);
 
-        thisComponent.isEditingWorkflowName.id = "";
-        thisComponent.requestUpdate();
+        this.isEditingWorkflowName.id = "";
+        this.requestUpdate();
       }}
     >
     </sl-input>
   `;
-};
+}
 
-export const renderStatusIndicator = (
-  key: string,
-  thisComponent: TrafficControlComponent
-) => {
-  if (!thisComponent.isDeletingWorkflow) {
+export function renderStatusIndicator(
+  this: TrafficControlComponent,
+  key: string
+) {
+  if (!this.isDeletingWorkflow) {
     return html`<span
       class="status-indicator"
       @click=${(e: any) => {
-        thisComponent.mockBoard.workflowMetadatas.get(key).isActivated =
-          !thisComponent.mockBoard.workflowMetadatas.get(key).isActivated;
-        thisComponent.mockBoard.updateWorkflow(
-          thisComponent.selectedWorkflow.workflowID,
-          thisComponent._bus
+        this.mockBoard.workflowMetadatas.get(key).isActivated =
+          !this.mockBoard.workflowMetadatas.get(key).isActivated;
+        this.mockBoard.updateWorkflow(
+          this.selectedWorkflow.workflowID,
+          this._bus
         );
-        thisComponent.requestUpdate();
+        this.requestUpdate();
         e.stopPropagation();
       }}
     >
@@ -67,58 +61,50 @@ export const renderStatusIndicator = (
       class="delete-workflow-button"
       @click=${() => {
         // if we are deleting this workflow, swithc selected workflow to the first one
-        if (thisComponent.selectedWorkflow.workflowID === key) {
-          thisComponent.selectedWorkflow = thisComponent.workflows[0];
+        if (this.selectedWorkflow.workflowID === key) {
+          this.selectedWorkflow = this.workflows[0];
         }
 
-        thisComponent.workflows = thisComponent.workflows.filter(
+        this.workflows = this.workflows.filter(
           (workflow: WorkflowMetadata) => workflow.workflowID !== key
         );
-        thisComponent.mockBoard.deleteWorkflow(key, thisComponent._bus);
-        thisComponent.requestUpdate();
+        this.mockBoard.deleteWorkflow(key, this._bus);
+        this.requestUpdate();
       }}
     >
     </sl-icon-button>
   `;
-};
+}
 
-export const renderWorkflowIsland = (thisComponent) => {
+export function renderWorkflowIsland() {
   return html`
     <aside
-      class="workflow-island ${thisComponent.isWorkflowIslandOpened
-        ? ""
-        : "closed"}"
+      class="workflow-island ${this.isWorkflowIslandOpened ? "" : "closed"}"
     >
       <div class="workflow-island-control">
         <sl-icon-button
           class="delete-workflow"
           name="trash"
           @click=${() => {
-            thisComponent.isDeletingWorkflow =
-              !thisComponent.isDeletingWorkflow;
+            this.isDeletingWorkflow = !this.isDeletingWorkflow;
           }}
         ></sl-icon-button>
         <sl-icon-button
           class="add-new-workflow"
           name="plus"
           @click=${() => {
-            const workflow = thisComponent.mockBoard.createNewWorkflow(
-              thisComponent._bus
-            );
-            thisComponent.workflows.push(workflow);
-            thisComponent.changeSelectedWorkflow(workflow);
-            thisComponent.requestUpdate();
+            const workflow = this.mockBoard.createNewWorkflow(this._bus);
+            this.workflows.push(workflow);
+            this.changeSelectedWorkflow(workflow);
+            this.requestUpdate();
           }}
         >
         </sl-icon-button>
         <sl-icon-button
           class="close-workflow-island"
-          name="${thisComponent.isWorkflowIslandOpened
-            ? "caret-left"
-            : "caret-right"}"
+          name="${this.isWorkflowIslandOpened ? "caret-left" : "caret-right"}"
           @click=${() => {
-            thisComponent.isWorkflowIslandOpened =
-              !thisComponent.isWorkflowIslandOpened;
+            this.isWorkflowIslandOpened = !this.isWorkflowIslandOpened;
           }}
         ></sl-icon-button>
       </div>
@@ -129,35 +115,33 @@ export const renderWorkflowIsland = (thisComponent) => {
         </sl-tooltip>
 
         <ul class="workflow-list">
-          ${thisComponent.workflows.map((workflow: WorkflowMetadata) => {
+          ${this.workflows.map((workflow: WorkflowMetadata) => {
             const key = workflow.workflowID;
 
             return html`<li
-              class="workflow-name ${thisComponent.selectedWorkflow
-                .workflowID === key
+              class="workflow-name ${this.selectedWorkflow.workflowID === key
                 ? "selected-workflow"
                 : ""}
-                  ${thisComponent.mockBoard.workflowMetadatas.get(key)
-                .isActivated
+                  ${this.mockBoard.workflowMetadatas.get(key).isActivated
                 ? "activated"
                 : ""}
                   
                   "
               @click=${() => {
-                thisComponent.changeSelectedWorkflow(workflow);
+                this.changeSelectedWorkflow(workflow);
               }}
               @dblclick=${() => {
-                thisComponent.isEditingWorkflowName.id = key;
-                thisComponent.isEditingWorkflowName.fromIsland = true;
-                thisComponent.requestUpdate();
+                this.isEditingWorkflowName.id = key;
+                this.isEditingWorkflowName.fromIsland = true;
+                this.requestUpdate();
               }}
             >
-              ${renderName(workflow.workflowName, key, thisComponent)}
-              ${renderStatusIndicator(key, thisComponent)}
+              ${renderName.bind(this)(workflow.workflowName, key)}
+              ${renderStatusIndicator.bind(this)(key)}
             </li> `;
           })}
         </ul>
       </div>
     </aside>
   `;
-};
+}

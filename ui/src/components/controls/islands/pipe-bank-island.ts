@@ -47,7 +47,7 @@ export const renderPipeBankIsland = (
   let moveContainers = 0;
   let pipeTitle = {
     tooltip: "All pipes",
-    title: "Pipes",
+    title: "Anchor Pipes",
   };
 
   if (thisComponent.selectedAnchor) {
@@ -59,7 +59,7 @@ export const renderPipeBankIsland = (
   if (thisComponent.selectedPipe) {
     moveContainers = 200;
     pipeTitle.tooltip = "Feed references values";
-    pipeTitle.title = "Selecting a Pipe";
+    pipeTitle.title = `Pipe data from ${thisComponent.selectedPipe.input.getFullProperty()}`;
   }
 
   let variableIslandControl = html`

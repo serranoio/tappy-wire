@@ -17,6 +17,7 @@ export default css`
   .pipe-bank-island {
     position: absolute;
     left: 0%;
+    box-shadow: 0 0 10px 0.2px var(--primary-color);
     bottom: 0%;
     background-color: var(--background-color);
     border-bottom-left-radius: 5px;

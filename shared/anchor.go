@@ -18,11 +18,11 @@ import (
 type AnchorType string
 
 const (
-	RequestBody  AnchorType = "request-body"
-	ResponseBody AnchorType = "response-body"
-	Parameter    AnchorType = "parameter"
-	Workflow     AnchorType = "workflow"
-	Custom       AnchorType = "custom"
+	RequestBodyAnchorType  AnchorType = "request-body"
+	ResponseBodyAnchorType AnchorType = "response-body"
+	ParameterAnchorType    AnchorType = "parameter"
+	Workflow               AnchorType = "workflow"
+	Custom                 AnchorType = "custom"
 )
 
 // Polymorphism Enum
@@ -398,7 +398,7 @@ type Anchor struct {
 func (a *Anchor) IsResponse() bool {
 
 	switch a.ReferenceType {
-	case ResponseBody:
+	case ResponseBodyAnchorType:
 		return true
 	case Workflow:
 		return true
@@ -438,9 +438,9 @@ func (a *Anchor) PopulateAnchorRequest(request *http.Request) (*Message, error) 
 	var value string
 
 	switch a.ReferenceType {
-	case Parameter:
+	case ParameterAnchorType:
 		value, message, err = a.ParameterProperty.PopulateAnchor(request, a.PathName)
-	case RequestBody:
+	case RequestBodyAnchorType:
 		value, message, err = a.RequestBodyProperty.PopulateAnchor(request, a.PathName)
 	case Workflow:
 	case Custom:
@@ -488,9 +488,9 @@ func (a *Anchor) InjectAnchorValueIntoRequest(request *http.Request) (*Message, 
 	var message *Message
 	var err error
 	switch a.ReferenceType {
-	case RequestBody:
+	case RequestBodyAnchorType:
 		message, err = a.RequestBodyProperty.InjectAnchorIntoRequstBody(request, a.ExpressionValue)
-	case Parameter:
+	case ParameterAnchorType:
 		message, err = a.ParameterProperty.InjectVariableIntoParameter(request, a.PathName, a.ExpressionValue)
 	}
 
@@ -503,7 +503,7 @@ func (a *Anchor) PopulateAnchorResponse(mock []byte) (*Message, error) {
 	var value string
 
 	switch a.ReferenceType {
-	case ResponseBody:
+	case ResponseBodyAnchorType:
 		value, message, err = a.ResponseBodyProperty.PopulateAnchor(mock)
 	case Workflow:
 	case Custom:
@@ -575,7 +575,7 @@ func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []strin
 	// get this anchor reference if it is within expression
 	if strings.Contains(a.Expression, a.GetFullProperty()) {
 		// & already json encoded
-		if a.ReferenceType == RequestBody || a.ReferenceType == ResponseBody {
+		if a.ReferenceType == RequestBodyAnchorType || a.ReferenceType == ResponseBodyAnchorType {
 			values = append(values, a.Value)
 		} else {
 			j, _ := json.Marshal(a.Value)
