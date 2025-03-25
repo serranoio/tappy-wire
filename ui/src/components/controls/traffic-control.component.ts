@@ -40,14 +40,18 @@ import workflowIslandCss from "./islands/workflow-island.css";
 import { renderPathsIsland } from "./islands/paths-island";
 import pathsIslandCss from "./islands/paths-island.css";
 import {
+  Mock,
   constructMockRequest,
   renderMockMonitorIsland,
 } from "./islands/mock-monitor-island";
-import { renderProxyMonitorIsland } from "./islands/proxy-monitor-island";
+import {
+  constructProxyRequest,
+  renderProxyMonitorIsland,
+} from "./islands/proxy-monitor-island";
 import { renderPipeBankIsland, selectPipe } from "./islands/pipe-bank-island";
 import pipeBankIslandCss from "./islands/pipe-bank-island.css";
 import mockMonitorIslandCss from "./islands/mock-monitor-island.css";
-import { HttpTransaction } from "@/model/http_transaction";
+import { HttpRequest, HttpTransaction } from "@/model/http_transaction";
 import { Message } from "@/model/message";
 import { styleMap } from "lit/directives/style-map.js";
 import { HttpTransactionViewComponent } from "../transaction/transaction-view";
@@ -55,6 +59,7 @@ import { MockBoard } from "@/model/traffic-control/mockboard";
 import { StepMetadata } from "@/model/traffic-control/step-metadata";
 import { WorkflowMetadata } from "@/model/traffic-control/workflow-metadata";
 import { renderWorkflowIsland } from "./islands/workflow-island";
+import proxyMonitorIslandCss from "./islands/proxy-monitor-island.css";
 
 @customElement("traffic-control")
 export class TrafficControlComponent extends LitElement {
@@ -64,6 +69,7 @@ export class TrafficControlComponent extends LitElement {
     pathsIslandCss,
     pipeBankIslandCss,
     mockMonitorIslandCss,
+    proxyMonitorIslandCss,
   ];
 
   @state()
@@ -155,10 +161,13 @@ export class TrafficControlComponent extends LitElement {
   mockMonitorList;
 
   @state()
-  mocks: any = [];
+  mocks: Mock[] = [];
 
   @state()
-  selectedMock: any = null;
+  selectedMock: Mock | null = null;
+
+  @state()
+  proxies: HttpTransaction[] = [];
 
   @query("#mock-monitor-dialog")
   mockMonitorDialog;
@@ -197,7 +206,6 @@ export class TrafficControlComponent extends LitElement {
     });
 
     this._controlsStore.subscribe(PathsKey, (pathItems: PathItem[]) => {
-      console.log(pathItems);
       this.pathItems = pathItems;
 
       this.mockBoard.setOperationsInSteps(this.pathItems);
@@ -244,18 +252,29 @@ export class TrafficControlComponent extends LitElement {
   listenToTransaction(e: CustomEvent<HttpTransaction>) {
     const transaction = e.detail;
 
+    const httpTransaction = new HttpTransaction();
+    httpTransaction.httpRequest = Object.assign(
+      new HttpRequest(),
+      transaction.httpRequest
+    );
+    httpTransaction.httpResponse = Object.assign(
+      new HttpRequest(),
+      transaction.httpResponse
+    );
+
     const { isMock, messages, errors } = constructMockRequest(
-      transaction,
-      this
+      this,
+      transaction
     );
     if (!isMock) {
+      constructProxyRequest(this, transaction);
       return;
     }
 
     const am = Message.FindMessagesWithAnchors(messages);
     let foundReceiver: HTMLElement[] = [];
     let foundSender: HTMLElement[] = [];
-    am.forEach((anchorMessage: Message) => {
+    am?.forEach((anchorMessage: Message) => {
       getAllAnchorBadges(this.renderRoot).forEach(
         (anchorBadge: HTMLElement) => {
           const ids = getIdsFromAnchorBadges(anchorBadge);
@@ -579,39 +598,40 @@ export class TrafficControlComponent extends LitElement {
   //   }
   // }
 
-  render() {
-    this.mockBoard.debug(false, false);
+  renderMock() {
+    return html`
+    <div>${this.selectedMock?.path}</div>
+    <div>
+      ${this.selectedMock?.anchorMessages?.map((am) => {
+        return html` <li>${am.message}</li> `;
+      })}
+    </div>
+    <div>
+      <h4>Messages</h4>
+      ${this.selectedMock?.messages?.map((m) => {
+        return html` <li>${m.message}</li> `;
+      })}
+    </div>
+    <div>
+      <h4>Errors</h4>
+      ${this.selectedMock?.errs?.map((err) => {
+        return html` <li>${err}</li> `;
+      })}
+    </div>
+    </br>
+`;
+  }
+
+  renderInDialog() {
+    let mockView = html``;
+    if (this.selectedMock) {
+      mockView = this.renderMock();
+    }
 
     return html`
-      ${renderAllPipes(this.pipes, this.renderRoot)}
-      ${this.renderSelectedPipe()} ${this.renderMockBoardSection()}
-      ${renderWorkflowIsland.bind(this)()} ${renderProxyMonitorIsland.bind(
-      this
-    )()}
-      ${renderPathsIsland.bind(this)()} ${this.renderSteps()}
-      ${renderPipeBankIsland(this)} ${renderMockMonitorIsland(this)}
       <sl-dialog id="mock-monitor-dialog" class="dialog-overview">
         <div class="dialog-container">
-          <div>${this.selectedMock?.path}</div>
-          <div>
-            ${this.selectedMock?.anchorMessages?.map((am) => {
-              return html` <li>${am.message}</li> `;
-            })}
-          </div>
-          <div>
-            <h4>Messages</h4>
-            ${this.selectedMock?.messages?.map((m) => {
-              return html` <li>${m.message}</li> `;
-            })}
-          </div>
-          <div>
-            <h4>Errors</h4>
-            ${this.selectedMock?.errs?.map((err) => {
-              return html` <li>${err}</li> `;
-            })}
-          </div>
-          </br>
-          ${this.transactionViewComponent.render()}
+          ${mockView} ${this.transactionViewComponent.render()}
         </div>
       </sl-dialog>
       <sl-icon-button
@@ -622,6 +642,19 @@ export class TrafficControlComponent extends LitElement {
         }}
       >
       </sl-icon-button>
+    `;
+  }
+
+  render() {
+    this.mockBoard.debug(false, false);
+
+    return html`
+      ${renderAllPipes(this.pipes, this.renderRoot)}
+      ${this.renderSelectedPipe()} ${this.renderMockBoardSection()}
+      ${renderWorkflowIsland.bind(this)()}
+      ${renderProxyMonitorIsland.bind(this)()} ${renderPathsIsland.bind(this)()}
+      ${this.renderSteps()} ${renderPipeBankIsland(this)}
+      ${renderMockMonitorIsland(this)} ${this.renderInDialog()}
       <div id="fly-container"></div>
     `;
   }

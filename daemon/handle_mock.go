@@ -37,7 +37,7 @@ func (ws *WiretapService) handleMockRequest(
 		}
 	}
 
-	stepIDs, anchors, foundAnchors := ws.getAllAnchorsOnThisPath(config, request.HttpRequest.URL.Path)
+	steps, anchors, foundAnchors := ws.getAllAnchorsOnThisPath(config, request.HttpRequest)
 
 	var mockboardMessages []*shared.Message
 	var mockboardErrs []error
@@ -50,6 +50,12 @@ func (ws *WiretapService) handleMockRequest(
 
 	// build a mock based on the request.
 	mock, mockMetadata, mockErr := ws.mockEngine.GenerateResponse(request.HttpRequest)
+	if len(mockMetadata.Messages) > 0 {
+		mockboardMessages = append(mockboardMessages, mockMetadata.Messages...)
+	}
+	if mockErr != nil {
+		mockboardErrs = append(mockboardErrs, mockErr)
+	}
 
 	if foundAnchors {
 		newMock, msgs, errs := config.Mockboard.HandleStepResponse(anchors, mock)
@@ -89,7 +95,12 @@ func (ws *WiretapService) handleMockRequest(
 		}
 	}
 
-	if len(stepIDs) != 0 {
+	if len(steps) != 0 {
+		var stepIDs []*string
+		for _, step := range steps {
+			stepIDs = append(stepIDs, step.ID)
+		}
+
 		encodedStepIDs, _ := json.Marshal(stepIDs)
 
 		request.HttpResponseWriter.Header().Set(MatchedPath, string(encodedStepIDs))

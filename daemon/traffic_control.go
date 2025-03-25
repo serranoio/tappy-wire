@@ -74,10 +74,6 @@ func directTrafficToMockModeOverride(config *shared.WiretapConfiguration, reques
 	return true
 }
 
-func injectValueIntoVariable(variable *shared.Variable) {
-
-}
-
 func matchRequestedPathAgainstSchema(compiledRequestPath glob.Glob, pathItems *orderedmap.Map[string, *v3.PathItem], variable *shared.Variable) (*v3.Operation, bool) {
 	for pathItem := pathItems.First(); pathItem != nil; pathItem = pathItem.Next() {
 		if compiledRequestPath.Match(pathItem.Key()) {

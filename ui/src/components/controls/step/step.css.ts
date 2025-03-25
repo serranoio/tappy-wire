@@ -310,7 +310,8 @@ export default css`
     background-color: color-mix(in srgb, var(--primary-color), black 30%);
   }
 
-  .selected-media-type::part(base) {
+  .selected-media-type::part(base),
+  .selected-code::part(base) {
     background-color: var(--primary-color);
     background-color: color-mix(in srgb, var(--primary-color), black 30%);
   }

@@ -372,8 +372,6 @@ export class WiretapComponent extends LitElement {
           this.requestUpdate();
         }
       } else {
-        console.log(payload, payload);
-
         const pathItems = PathItem.NewPathItems(payload?.payload);
         localforage.setItem(PathsKey, pathItems);
         this._trafficControlStore.set(PathsKey, pathItems);

@@ -97,6 +97,7 @@ func (ss *TrafficControlService) deleteWorkflow(request *model.Request, core ser
 
 	ss.updateState()
 }
+
 func (ss *TrafficControlService) updateWorkflow(request *model.Request, core service.FabricServiceCore) {
 	var workflowPayload *WorkflowPayload
 

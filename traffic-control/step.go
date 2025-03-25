@@ -13,24 +13,26 @@ func formStepMap(stepMetadatas []*shared.StepMetadata) map[string]*shared.StepMe
 }
 
 type StepMetadata struct {
-	ID          *string         `json:"id"`
-	Description *string         `json:"description"`
-	StepName    *string         `json:"stepName"`
-	OperationID *string         `json:"operationID"`
-	Position    shared.Position `json:"position"`
-	PathName    *string         `json:"pathName"`
-	Operation   *Operation      `json:"operation"`
+	ID           *string         `json:"id"`
+	Description  *string         `json:"description"`
+	StepName     *string         `json:"stepName"`
+	OperationID  *string         `json:"operationID"`
+	Position     shared.Position `json:"position"`
+	PathName     *string         `json:"pathName"`
+	Operation    *Operation      `json:"operation"`
+	SelectedCode *string         `json:"selectedCode"`
 }
 
 func (sm *StepMetadata) NewStepMetadata() *shared.StepMetadata {
 	return &shared.StepMetadata{
-		ID:          sm.ID,
-		Description: sm.Description,
-		StepName:    sm.StepName,
-		OperationID: sm.OperationID,
-		Position:    sm.Position,
-		PathName:    sm.PathName,
-		Operation:   sm.Operation.NewOperation(),
+		ID:           sm.ID,
+		Description:  sm.Description,
+		StepName:     sm.StepName,
+		OperationID:  sm.OperationID,
+		Position:     sm.Position,
+		PathName:     sm.PathName,
+		Operation:    sm.Operation.NewOperation(),
+		SelectedCode: sm.SelectedCode,
 	}
 
 }

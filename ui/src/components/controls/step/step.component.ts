@@ -65,7 +65,7 @@ export class ArazzoStep extends LitElement {
   listenToMatchedPath(e: CustomEvent<string>) {
     const paths: string[] = JSON.parse(e.detail);
 
-    if (paths.includes(this.stepMetadata.id)) {
+    if (paths.includes(this.stepMetadata?.id)) {
       this.stepMetadata.glow();
       this.requestUpdate();
     }
@@ -635,9 +635,21 @@ export class ArazzoStep extends LitElement {
 
               return html`
                 <sl-menu-item
-                  class="response-code"
+                  class="response-code ${this.stepMetadata.selectedCode ===
+                  code.name
+                    ? "selected-code"
+                    : ""}"
                   @click=${() => {
-                    code.isOpened = !code.isOpened;
+                    this.stepMetadata.selectedCode = code.name;
+
+                    sendEvent<UpdateStepMetadataType>(
+                      this,
+                      UpdateStepMetadataEvent,
+                      {
+                        workflowID: this.workflowID,
+                        stepMetadata: this.stepMetadata,
+                      }
+                    );
 
                     this.requestUpdate();
                   }}
@@ -692,8 +704,6 @@ export class ArazzoStep extends LitElement {
 
   render() {
     this.setPosition();
-
-    console.log(this.stepMetadata);
 
     return html`
       <figure class="arazzo-step-container ${this.handleGlow()}">

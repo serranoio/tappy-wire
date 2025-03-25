@@ -7,6 +7,14 @@ import {
 import YAML from "yaml";
 import { SlMenuItem } from "@shoelace-style/shoelace";
 
+const constructMediaTypeIndex = (curString, add) => {
+  if (curString === "") {
+    return "$" + add;
+  }
+
+  return curString + "." + add;
+};
+
 export class Schema {
   schema: string;
   ref: string;
@@ -38,8 +46,11 @@ export class Schema {
   }
 
   normalize() {
+    const schema = btoa(JSON.stringify(this.schema));
+    console.log(schema);
+
     return {
-      schema: btoa(YAML.stringify(this.schema)),
+      schema: schema,
       ref: this.ref,
       oneOf: this.oneOf?.map((oneOf: Schema) => oneOf.normalize()),
     };
@@ -65,7 +76,7 @@ export class MediaType {
     this.examples = value.examples;
     this.selectedExample = value.selectedexample;
   }
-  normalize() {
+  normalize(mediaTypeIndex: string) {
     return {
       name: this.name,
       schema: this.schema.normalize(),
@@ -105,12 +116,12 @@ export class RequestBody {
     return `description: ${this.description} required: ${this.required} content: ${content}`;
   }
 
-  normalize() {
+  normalize(mediaTypeIndex: string) {
     return {
       description: this.description,
       required: this.required,
       content: normalizeMap(this.content).map((content: MediaType) =>
-        content.normalize()
+        content.normalize(constructMediaTypeIndex(mediaTypeIndex, content.name))
       ),
     };
   }
@@ -142,13 +153,13 @@ export class ResponseCode {
     }
   }
 
-  normalize() {
+  normalize(mediaTypeIndex: string) {
     return {
       name: this.name,
       description: this.description,
       // headers: normali
       content: normalizeMap(this.content).map((content: MediaType) =>
-        content.normalize()
+        content.normalize(constructMediaTypeIndex(mediaTypeIndex, content.name))
       ),
     };
   }
@@ -177,10 +188,10 @@ export class Responses {
     });
   }
 
-  normalize() {
+  normalize(mediaTypeIndex: string) {
     return {
       codes: normalizeMap(this.codes).map((code: ResponseCode) =>
-        code.normalize()
+        code.normalize(constructMediaTypeIndex(mediaTypeIndex, code.name))
       ),
     };
   }
@@ -224,6 +235,18 @@ export class Parameter {
     this.allowReserved = value.allowReserved;
     this.schema = new Schema(value.schema);
   }
+
+  normalize() {
+    return {
+      name: this.name,
+      in: this.in,
+      description: this.description,
+      required: this.required,
+      allowEmptyValue: this.allowEmptyValue,
+      allowReserved: this.allowReserved,
+      schema: this.schema.normalize(),
+    };
+  }
 }
 
 export class Operation {
@@ -259,9 +282,15 @@ export class Operation {
       summary: this.summary,
       description: this.description,
       operationId: this.operationId,
-      parameters: this.parameters,
-      requestBody: this.requestBody.normalize(),
-      responses: this.responses.normalize(),
+      parameters: this.parameters?.forEach((parameter: Parameter) => {
+        return parameter.normalize();
+      }),
+      requestBody: this.requestBody.normalize(
+        constructMediaTypeIndex("", "requestBody")
+      ),
+      responses: this.responses.normalize(
+        constructMediaTypeIndex("", "responses")
+      ),
       security: null,
       method: this.method,
     };

@@ -37,7 +37,7 @@ export class Message {
   }
 
   static ConstructMessages(messages: Message[]): Message[] {
-    return messages.map(
+    return messages?.map(
       (message: Message) =>
         new Message(
           message.message,
@@ -48,7 +48,7 @@ export class Message {
   }
 
   static FindMessagesWithAnchors(messages: Message[]): Message[] {
-    return messages.filter((message: Message) => {
+    return messages?.filter((message: Message) => {
       if (message.receiverAnchor && message.senderAnchor) {
         return true;
       }

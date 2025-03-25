@@ -10,19 +10,22 @@ import (
 	"github.com/speakeasy-api/openapi/arazzo"
 )
 
+const PolymorphicSchema = "wiretap-polymorhpic-schema"
+
 type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 }
 
 type StepMetadata struct {
-	ID          *string    `json:"id"`
-	Description *string    `json:"description"`
-	StepName    *string    `json:"stepName"`
-	OperationID *string    `json:"operationID"`
-	Position    Position   `json:"position"`
-	PathName    *string    `json:"pathName"`
-	Operation   *Operation `json:"operation"`
+	ID           *string    `json:"id"`
+	Description  *string    `json:"description"`
+	StepName     *string    `json:"stepName"`
+	OperationID  *string    `json:"operationID"`
+	Position     Position   `json:"position"`
+	PathName     *string    `json:"pathName"`
+	Operation    *Operation `json:"operation"`
+	SelectedCode *string    `json:"selectedCode"`
 }
 
 func (sm *StepMetadata) getOperation(doc *v3.Document) *v3.Operation {

@@ -10,6 +10,99 @@ import { HttpRequest, HttpTransaction } from "@/model/http_transaction";
 import { Message } from "@/model/message";
 import { StepMetadata, WorkflowMetadata } from "@/model/traffic-control";
 import { normalize } from "path";
+import { MockBoard } from "@/model/traffic-control/mockboard";
+
+export class Mock {
+  transaction: HttpTransaction;
+  messages: Message[];
+  anchorMessages: Message[];
+  errs: string[];
+  workflows: string[];
+  path: string;
+  headers: any;
+  constructor(
+    transaction: HttpTransaction,
+    element: Element,
+    mockboard: MockBoard
+  ) {
+    this.transaction = transaction;
+    this.headers = this.transaction.httpResponse.headers;
+
+    if (
+      this.headers[WiretapTypeHeader] === "Proxy" ||
+      this.headers[WiretapTypeHeader] !== "mock"
+    ) {
+      throw new Error("this is a proxy");
+    }
+    if (!this.matchedPath(element)) {
+      return;
+    }
+
+    this.matchedWorkflows(mockboard);
+
+    this.constructMessages();
+    this.constructErrors();
+  }
+
+  constructErrors() {
+    const errs = JSON.parse(this.headers["Wiretap-Mock-Errors"]);
+
+    if (!errs || isObjectEmpty(errs[0])) {
+      this.errs = [];
+    } else {
+      this.errs = errs;
+    }
+  }
+
+  constructMessages() {
+    let messages: Message[] = [];
+    const msg = JSON.parse(this.headers.Messages);
+    if (msg) {
+      messages = Message.ConstructMessages(msg);
+      this.messages = messages;
+      const anchorMessages = Message.FindMessagesWithAnchors(messages);
+      this.anchorMessages = anchorMessages;
+    }
+  }
+
+  // matches workflows that contain this step.
+  matchedWorkflows(mockboard: MockBoard) {
+    this.workflows = [];
+
+    normalizeMap(mockboard.workflowMetadatas).forEach(
+      (workflow: WorkflowMetadata) => {
+        if (!workflow.isActivated) return;
+
+        normalizeMap(workflow.stepMetadatas).map(
+          (stepMetadata: StepMetadata) => {
+            const obj = JSON.parse(
+              this.transaction.httpResponse.headers[WiretapMatchedPath]
+            );
+            console.log("parsed path", obj, this.headers[WiretapMatchedPath]);
+
+            if (obj.includes(stepMetadata.id)) {
+              this.path = stepMetadata.pathName;
+              this.workflows.push(workflow.getWorkflowName());
+            }
+          }
+        );
+      }
+    );
+  }
+
+  matchedPath(element: Element) {
+    if (!this.headers[WiretapMatchedPath]) {
+      return false;
+    }
+
+    sendEvent(
+      element,
+      WiretapMatchedPath,
+      this.transaction.httpResponse.headers[WiretapMatchedPath]
+    );
+    return true;
+  }
+}
 
 export const renderMockMonitorIsland = (
   thisComponent: TrafficControlComponent
@@ -21,17 +114,27 @@ export const renderMockMonitorIsland = (
         <h4 class="island-titles mock-monitor-island-title">Mock Monitor</h4>
       </sl-tooltip>
       <div id="mock-monitor-list">
-        ${thisComponent.mocks.map((mock) => {
+        ${thisComponent.mocks.map((mock: Mock) => {
           return html`
             <div
               class="mock-transaction"
               @click=${() => {
-                const httpTransaction = Object.assign(
+                const transaction = Object.assign(
                   new HttpTransaction(),
                   mock.transaction
                 );
+
+                transaction.httpRequest = Object.assign(
+                  new HttpRequest(),
+                  transaction.httpRequest
+                );
+                transaction.httpResponse = Object.assign(
+                  new HttpRequest(),
+                  transaction.httpResponse
+                );
+
                 thisComponent.transactionViewComponent.httpTransaction =
-                  httpTransaction;
+                  transaction;
 
                 thisComponent.selectedMock = mock;
                 thisComponent.mockMonitorDialog.show();
@@ -95,81 +198,22 @@ export const WiretapTypeHeader = "Wiretap-Type-Header";
 export const WiretapMatchedPath = "Wiretap-Matched-Path";
 export const Messages = "Messages";
 
-const handleWiretapMatchedPath = (
-  thisComponent: TrafficControlComponent,
-  headers
-) => {
-  sendEvent(thisComponent, WiretapMatchedPath, headers[WiretapMatchedPath]);
-  if (!headers[WiretapMatchedPath]) {
-    console.log("no matched path");
-    return;
-  }
-
-  thisComponent.mocks[0].workflows = [];
-  normalizeMap(thisComponent.mockBoard.workflowMetadatas).forEach(
-    (workflow: WorkflowMetadata) => {
-      if (!workflow.isActivated) return;
-
-      normalizeMap(workflow.stepMetadatas).map((stepMetadata: StepMetadata) => {
-        const obj = JSON.parse(headers[WiretapMatchedPath]);
-        console.log("parsed path", obj, headers[WiretapMatchedPath]);
-
-        if (obj.includes(stepMetadata.id)) {
-          thisComponent.mocks[0].path = stepMetadata.pathName;
-          thisComponent.mocks[0].workflows.push(workflow.getWorkflowName());
-        }
-      });
-    }
-  );
-
-  thisComponent.requestUpdate();
-};
-
 export interface MockError {}
 
-export const constructMockRequest = (
-  transaction: HttpTransaction,
-  thisComponent: TrafficControlComponent
-): { isMock: boolean; messages: Message[]; errors: MockError[] } => {
-  const httpTransaction = new HttpTransaction();
-
-  httpTransaction.httpRequest = Object.assign(
-    new HttpRequest(),
-    transaction.httpRequest
-  );
-  httpTransaction.httpResponse = Object.assign(
-    new HttpRequest(),
-    transaction.httpResponse
-  );
-  thisComponent.mocks.unshift({ transaction: httpTransaction });
-
-  if (httpTransaction.httpResponse.headers[WiretapTypeHeader] === "Proxy") {
+export function constructMockRequest(
+  thisComponent: TrafficControlComponent,
+  transaction: HttpTransaction
+): { isMock: boolean; messages: Message[]; errors: MockError[] } {
+  let mock: Mock;
+  try {
+    mock = new Mock(transaction, thisComponent, thisComponent.mockBoard);
+  } catch (e) {
     return { isMock: false, messages: [], errors: [] };
   }
 
-  handleWiretapMatchedPath(thisComponent, httpTransaction.httpResponse.headers);
-
-  let messages: Message[] = [];
-  const msg = JSON.parse(httpTransaction.httpResponse.headers.Messages);
-  if (msg) {
-    messages = Message.ConstructMessages(msg);
-    thisComponent.mocks[0].messages = messages;
-    const anchorMessages = Message.FindMessagesWithAnchors(messages);
-    thisComponent.mocks[0].anchorMessages = anchorMessages;
-    console.log(thisComponent.mocks, messages, anchorMessages);
-  }
-
-  const errs = JSON.parse(
-    httpTransaction.httpResponse.headers["Wiretap-Mock-Errors"]
-  );
-
-  if (!errs || isObjectEmpty(errs[0])) {
-    thisComponent.mocks[0].errs = [];
-  } else {
-    thisComponent.mocks[0].errs = errs;
-  }
-
+  thisComponent.mocks.unshift(mock);
+  thisComponent.requestUpdate();
   // render the request as a div and have it dissappear after 100 seconds or some shit
   // make the step glow, also show the mock request in the panel.
-  return { isMock: true, messages: messages, errors: [] };
-};
+  return { isMock: true, messages: mock.messages, errors: mock.errs };
+}
