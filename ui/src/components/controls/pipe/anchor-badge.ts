@@ -85,10 +85,10 @@ export const renderAllPipes = (pipes: Pipe[], renderRoot: any) => {
       const ids = getIdsFromAnchorBadges(anchorBadge);
       ids.forEach((id: string) => {
         // get input, get array of outputs
-        if (id === pipe.input.id) {
+        if (id === pipe.input) {
           inputAnchorBadge = anchorBadge;
         }
-        if (pipe.outputs.map((output: Anchor) => output.id).includes(id)) {
+        if (pipe.outputs.includes(id)) {
           outputAnchorBadges.push(anchorBadge);
         }
       });

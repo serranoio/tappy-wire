@@ -24,6 +24,7 @@ export class StepMetadata {
     this.stepName = "";
     this.id = RanchUtils.genShortId(6);
     this.isGlowing = false;
+    this.selectedCode = "";
   }
 
   glow() {
@@ -122,8 +123,17 @@ export class StepMetadata {
     return this;
   }
 
-  doesStepContainAnchors(pipe: Pipe): Anchor[] {
+  // ! All anchors exist on the workflow level now, so this is deprecated
+  doesStepContainAnchorsInPipe(pipe: Pipe): Anchor[] {
     const anchors = [pipe.input, ...pipe.outputs].filter((a: Anchor) => {
+      return a.stepID === this.id;
+    });
+
+    return anchors;
+  }
+
+  doesStepContainAnchors(allAnchors: Anchor[]): Anchor[] {
+    const anchors = allAnchors.filter((a: Anchor) => {
       return a.stepID === this.id;
     });
 

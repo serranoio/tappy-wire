@@ -117,6 +117,8 @@ func writeMockboard(mockboard *shared.Mockboard) error {
 		return err
 	}
 
+	return nil
+
 	os.WriteFile(path.Join(dir, main), mockboardBytes, 0755)
 
 	return nil

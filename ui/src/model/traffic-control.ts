@@ -122,6 +122,10 @@ export class ParameterProperty {
     return new ParameterProperty(value.type, value.property);
   }
 
+  static ConstructProperty(type: In, property: string) {
+    return `${type}.${property}`;
+  }
+
   getProperty() {
     return `${this.type}.${this.property}`;
   }
@@ -231,7 +235,10 @@ export class Anchor {
       return html`
         <sl-tooltip>
           <p slot="content">${insertSpaces(ar.pathName)}</p>
-          <sl-badge>${ar.property}</sl-badge>
+          <sl-badge
+            >${ar.property}
+            <sl-copy-button value=${ar.property}></sl-copy-button>
+          </sl-badge>
         </sl-tooltip>
       `;
     });
@@ -290,13 +297,11 @@ export class Anchor {
 
   // send data through this pipe
   newPipe(): Pipe {
-    const pipe = new Pipe(this.referenceType, this.parameterProperty);
+    const pipe = new Pipe(this.id);
     this.addAnchorPipe(pipe);
 
     this.expression = this.getFullProperty();
 
-    // overwright input
-    pipe.input = this;
     return pipe;
   }
 
@@ -343,8 +348,6 @@ export class Anchor {
   }
 
   updateAnchor(workflowID: string, bus: Bus) {
-    const pipeID = this.lastSelectedPipe.id;
-
     if (bus?.getClient()?.connected) {
       bus.publish({
         destination: "/pub/queue/traffic-control",
@@ -353,7 +356,6 @@ export class Anchor {
           request: UpdateAnchor,
           payload: JSON.stringify({
             workflowID: workflowID,
-            pipeID: pipeID,
             anchor: this.normalize(),
           }),
         }),
@@ -401,78 +403,73 @@ export class Anchor {
 export class Pipe {
   id: string;
   name: string;
-  input: Anchor;
-  outputs: Anchor[];
+  input: string;
+  outputs: string[];
   exposeOutOfWorkflow: boolean;
   isPopulated: boolean;
-  constructor(referenceType: AnchorType, propertyType: Property) {
+  constructor(inputID: string) {
     this.id = RanchUtils.genShortId(6);
     this.name = "";
-    this.input = new Anchor(referenceType, propertyType);
     this.outputs = [];
     this.exposeOutOfWorkflow = false;
     this.isPopulated = false;
+    this.input = inputID;
   }
 
-  renderOutputs() {
-    if (this.outputs.length === 0) {
+  renderOutputs(workflow: WorkflowMetadata) {
+    const outputs = workflow.getOutputAnchorsInThisPipe(this.outputs);
+
+    if (outputs.length === 0) {
       return html`❌`;
     }
-    if (this.outputs.length === 1) {
-      return html` ${this.outputs[0].getProperty()} `;
+    if (outputs.length === 1) {
+      return html` ${outputs[0].getProperty()} `;
     }
 
     return html` <sl-badge variant="primary" pill pulse
-      >${this.outputs.length}</sl-badge
+      >${outputs.length}</sl-badge
     >`;
   }
 
-  renderPipeBadge() {
+  renderPipeBadge(workflow: WorkflowMetadata) {
+    const input = workflow.getInputAnchorInThisPipe(this.input);
+
     return html`<sl-badge class="pipe-badge"
-      >${this.input.getProperty()}
-      <sl-icon name="chevron-double-right"></sl-icon
-      >${this.renderOutputs()}</sl-badge
+      >${input.getProperty()}
+      <sl-icon name="chevron-double-right"></sl-icon>${this.renderOutputs(
+        workflow
+      )}</sl-badge
     >`;
   }
 
   static NewPipe(value): Pipe {
-    const pipe = new Pipe(
-      value.input.referencetype,
-      value.input[value.input.referencetype]
-    );
+    const pipe = new Pipe(value.input);
 
     pipe.id = value.id;
     pipe.exposeOutOfWorkflow = value.exposeoutofworkflow;
     pipe.isPopulated = value.ispopulated;
     pipe.name = value.name;
-    pipe.input = Anchor.NewAnchor(value.input);
+    pipe.input = value.input;
     pipe.id = value.id;
-    pipe.outputs = value.outputs.map((output: Anchor) =>
-      Anchor.NewAnchor(output)
-    );
+    pipe.outputs = value.outputs;
 
     return pipe;
   }
 
-  addPathAnchor(pathName: string, pathMethod: string, stepID: string): Pipe {
-    this.input.addPathAnchor(pathName, pathMethod, stepID);
-
-    return this;
-  }
-
-  addOutput(reference: Anchor) {
+  addOutput(reference: Anchor, workflow: WorkflowMetadata) {
     reference.receiverPipes.push(this.id);
     // I need to send in the anchor ID, but also the property
     // why not just property? that won't work. However, render it as
+    const inputAnchor = workflow.getInputAnchorInThisPipe(this.input);
     reference.addAnchorReference({
-      id: this.input.id,
-      property: this.input.getFullProperty(),
-      pathName: this.input.pathName,
+      id: inputAnchor.id,
+      property: inputAnchor.getFullProperty(),
+      pathName: inputAnchor.pathName,
     });
 
-    reference.expression = this.input.getExpression();
+    reference.expression = inputAnchor.getExpression();
     reference.lastSelectedPipe = this;
-    this.outputs.push(reference);
+    this.outputs.push(reference.id);
   }
 
   // ! not implementing yet
@@ -511,8 +508,8 @@ export class Pipe {
     return {
       id: this.id,
       name: this.name,
-      input: this.input.normalize(),
-      outputs: this.outputs.map((output: Anchor) => output.normalize()),
+      input: this.input,
+      outputs: this.outputs,
       exposeOutOfWorkflow: this.exposeOutOfWorkflow,
       isPopulated: this.isPopulated,
     };

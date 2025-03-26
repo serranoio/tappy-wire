@@ -1,5 +1,5 @@
 import { RanchUtils } from "@pb33f/ranch";
-import { Pipe } from "../traffic-control";
+import { Anchor, Pipe } from "../traffic-control";
 import { normalizeMap } from "../traffic-control-utils";
 import { StepMetadata } from "./step-metadata";
 
@@ -8,6 +8,7 @@ export class WorkflowMetadata {
   workflowID: string;
   isActivated: boolean;
   pipes: Map<string, Pipe>;
+  anchors: Anchor[];
   summary: string;
   description: string;
   workflowName: string;
@@ -17,6 +18,25 @@ export class WorkflowMetadata {
     this.stepMetadatas = new Map();
     this.pipes = new Map();
     this.workflowName = "";
+    this.anchors = [];
+  }
+
+  getOutputAnchorsInThisPipe(outputIDs: string[]): Anchor[] {
+    return this.anchors.filter((anchor: Anchor) =>
+      outputIDs.includes(anchor.id)
+    );
+  }
+
+  getAnchorsOnStep(stepID: string): Anchor[] {
+    return this.anchors.filter((anchor: Anchor) => {
+      return anchor.stepID === stepID;
+    });
+  }
+
+  getInputAnchorInThisPipe(inputID: string): Anchor {
+    const anchor = this.anchors.find((anchor: Anchor) => anchor.id === inputID);
+
+    return anchor;
   }
 
   getWorkflowName() {
@@ -61,6 +81,11 @@ export class WorkflowMetadata {
       wfm.pipes.set(pipe.id, pipe);
     });
 
+    workflowMetadata.anchors?.map((value) => {
+      const anchor = Anchor.NewAnchor(value);
+      wfm.anchors.push(anchor);
+    });
+
     // Object.entries(workflowMetadata.variables).map(([_, value]) => {
     //   const v = Variable.NewVariable(value);
     //   wfm.variables.set(v.id, v);
@@ -88,6 +113,9 @@ export class WorkflowMetadata {
       ),
       pipes: normalizeMap(this.pipes).map((pipe: Pipe) => {
         return pipe.normalize();
+      }),
+      anchors: normalizeMap(this.anchors).map((anchor: Anchor) => {
+        return anchor.normalize();
       }),
     };
   }

@@ -8,12 +8,20 @@ export function renderName(
   name: string,
   key: string
 ) {
+  // if we are not in the island
   if (
-    this.isEditingWorkflowName.id !== key ||
-    this.isEditingWorkflowName.id.length === 0 ||
+    (this.isEditingWorkflowName.id !== key ||
+      this.isEditingWorkflowName.id.length === 0) &&
     !this.isEditingWorkflowName.fromIsland
-  )
+  ) {
     return html`${this.selectedWorkflow.getWorkflowName()}`;
+  }
+  if (
+    this.isEditingWorkflowName.fromIsland &&
+    this.isEditingWorkflowName.id !== key
+  ) {
+    return html`${name}`;
+  }
 
   return html`
     <sl-input
@@ -136,7 +144,7 @@ export function renderWorkflowIsland() {
                 this.requestUpdate();
               }}
             >
-              ${renderName.bind(this)(workflow.workflowName, key)}
+              ${renderName.bind(this)(workflow.getWorkflowName(), key)}
               ${renderStatusIndicator.bind(this)(key)}
             </li> `;
           })}

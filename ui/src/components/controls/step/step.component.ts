@@ -2,6 +2,7 @@ import { LitElement, html, css, PropertyValueMap } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import stepCss from "./step.css";
 import {
+  In,
   MediaType,
   Parameter,
   PathItem,
@@ -17,14 +18,13 @@ import {
 } from "@/model/traffic-control";
 import {
   IO,
-  SelectingPipeEvent,
+  NewAnchorEvent,
   SelectingAnchorEvent,
   UpdateStepMetadataEvent,
   UpdateStepMetadataType,
   insertSpaces,
   normalizeMap,
   sendEvent,
-  isObjectEmpty,
 } from "@/model/traffic-control-utils";
 import { WiretapMatchedPath } from "../islands/mock-monitor-island";
 import { StepMetadata } from "@/model/traffic-control/step-metadata";
@@ -219,6 +219,8 @@ export class ArazzoStep extends LitElement {
       .join("");
   }
 
+  constructParameterProperty(IN: In, name: string) {}
+
   getSelectedRef(mediaType: MediaType, input: IO, code?: string) {
     if (input === "output") {
       return this.stepMetadata.operation.responses.codes
@@ -410,14 +412,32 @@ export class ArazzoStep extends LitElement {
     `;
   }
 
+  foundAnchor(anchorProperty: string): boolean {
+    let foundAnchor = false;
+
+    this.anchors.forEach((anchor: Anchor) => {
+      if (anchor.getProperty() === anchorProperty) {
+        foundAnchor = true;
+        sendEvent<Anchor>(this, SelectingAnchorEvent, anchor);
+      }
+    });
+
+    return foundAnchor;
+  }
+
   setPosition() {
     this.style.left = `${this.stepMetadata.position.x}px`;
     this.style.top = `${this.stepMetadata.position.y}px`;
   }
 
-  hasPipeInputAnchor(property) {
+  hasPipeInputAnchor(property, code?: string) {
     const anchors = this.anchors.filter((anchor: Anchor) => anchor[property]);
     if (anchors.length === 0) return;
+
+    // ! this is a workaround, we need
+    if (code !== undefined && this.stepMetadata.selectedCode !== code) {
+      return;
+    }
 
     return html`
       <sl-badge
@@ -485,6 +505,16 @@ export class ArazzoStep extends LitElement {
               const dataIn = selected.dataset.in;
               const property = selected.dataset.property;
 
+              if (
+                this.foundAnchor(
+                  ParameterProperty.ConstructProperty(dataIn, property)
+                )
+              ) {
+                console.log("found anchor");
+                return;
+              }
+              console.log("new anchor");
+
               const newAnchor = new Anchor(
                 "parameter",
                 new ParameterProperty(dataIn, property)
@@ -495,7 +525,7 @@ export class ArazzoStep extends LitElement {
                 this.stepMetadata.id
               );
 
-              sendEvent<Anchor>(this, SelectingAnchorEvent, newAnchor);
+              sendEvent<Anchor>(this, NewAnchorEvent, newAnchor);
             }}
           >
             ${params.map((param: Parameter) => {
@@ -531,7 +561,10 @@ export class ArazzoStep extends LitElement {
               <sl-menu
                 slot="submenu"
                 @click=${() => {
-                  console.log("clicked mediatype");
+                  if (this.foundAnchor(this.constructProperty())) {
+                    return;
+                  }
+
                   let newAnchor: Anchor;
                   if (input === "input") {
                     newAnchor = new Anchor(
@@ -557,7 +590,7 @@ export class ArazzoStep extends LitElement {
                     this.stepMetadata.id
                   );
 
-                  sendEvent<Anchor>(this, SelectingAnchorEvent, newAnchor);
+                  sendEvent<Anchor>(this, NewAnchorEvent, newAnchor);
                 }}
               >
                 ${this.renderSchemaContainer(
@@ -657,7 +690,7 @@ export class ArazzoStep extends LitElement {
                   <sl-badge>${code.name}</sl-badge>
                   ${renderOneOfRefs}
                   ${renderMediaTypeMenu(code.content, code.name, "output")}
-                  ${this.hasPipeInputAnchor("responseBodyProperty")}
+                  ${this.hasPipeInputAnchor("responseBodyProperty", code.name)}
                 </sl-menu-item>
               `;
             })}

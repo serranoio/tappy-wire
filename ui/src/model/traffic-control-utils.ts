@@ -2,7 +2,7 @@ import { html } from "lit";
 import { StepMetadata } from "./traffic-control";
 
 // Map<string, value> => [value]
-export function normalizeMap(map) {
+export function normalizeMap<T>(map): T[] {
   if (!map) return [];
 
   return Array.from(map.values());
@@ -52,7 +52,8 @@ export interface UpdateStepMetadataType {
 export const UpdateStepEvent = "update-step-event";
 
 export const SelectingPipeEvent = "selecting-pipe-event";
-export const SelectingAnchorEvent = "selecting-reference-event";
+export const SelectingAnchorEvent = "selecting-anchor-event";
+export const NewAnchorEvent = "new-anchor-event";
 
 export type IO = "input" | "output";
 

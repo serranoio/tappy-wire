@@ -18,8 +18,9 @@ func (ws *WiretapService) setPreferredOnSteps(steps []*shared.StepMetadata, requ
 	// ^ wiretap does not know which response code to send. it will defaul to 200. Set wireatp-status-code to change codes to select
 	for _, step := range steps {
 		// we always default to 200
-		if *step.SelectedCode == "" {
-			*step.SelectedCode = "200"
+		if step.SelectedCode == nil || *step.SelectedCode == "" {
+			newCode := "200"
+			*step.SelectedCode = newCode
 		}
 
 		// this is needed for the mock generator

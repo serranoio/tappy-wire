@@ -6,6 +6,7 @@ import {
   CreateNewWorkflow,
   Pipe,
   DeleteWorkflow,
+  Anchor,
 } from "../traffic-control";
 import {
   normalizeMap,
@@ -135,6 +136,18 @@ export class MockBoard {
         return workflowMetadata.normalize();
       }
     );
+  }
+
+  addNewAnchor(workflowID: string, anchor: Anchor, bus: Bus) {
+    const workflow = this.workflowMetadatas.get(workflowID);
+
+    if (
+      !workflow.anchors.map((anchor: Anchor) => anchor.id).includes(anchor.id)
+    ) {
+      workflow.anchors.push(anchor);
+    }
+
+    this.updateWorkflow(workflowID, bus);
   }
 
   addNewPipe(workflowID: string, pipe: Pipe, bus: Bus) {

@@ -17,13 +17,14 @@ const (
 )
 
 type WorkflowMetadata struct {
-	WorkflowName  string          `json:"workflowName"`
-	WorkflowID    string          `json:"workflowID"`
-	IsActivated   bool            `json:"isActivated"`
-	StepMetadatas []*StepMetadata `json:"stepMetadatas"`
-	Pipes         []*shared.Pipe  `json:"pipes"`
-	Summary       string          `json:"summary"`
-	Description   string          `json:"description"`
+	WorkflowName  string           `json:"workflowName"`
+	WorkflowID    string           `json:"workflowID"`
+	IsActivated   bool             `json:"isActivated"`
+	StepMetadatas []*StepMetadata  `json:"stepMetadatas"`
+	Pipes         []*shared.Pipe   `json:"pipes"`
+	Summary       string           `json:"summary"`
+	Description   string           `json:"description"`
+	Anchors       []*shared.Anchor `json:"anchors"`
 }
 
 type DeleteWorkflowPayload struct {
@@ -47,6 +48,7 @@ func NewWorkflowMetadataFromPayload(workflowMetadata WorkflowMetadata) *shared.W
 		Description:   &workflowMetadata.Description,
 		WorkflowName:  &workflowMetadata.WorkflowName,
 		Pipes:         make(map[string]*shared.Pipe),
+		Anchors:       []*shared.Anchor{},
 	}
 
 }
@@ -109,7 +111,14 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 	}
 	id := workflowPayload.WorkflowMetadata.WorkflowID
 
+	var newAnchors []*shared.Anchor
+	for _, anchor := range workflowPayload.WorkflowMetadata.Anchors {
+		newAnchors = append(newAnchors, anchor)
+	}
+
+	ss.mockboard.WorkflowMetadata[id].Anchors = newAnchors
 	ss.mutex.Lock()
+
 	ss.mockboard.WorkflowMetadata[id].Pipes = make(map[string]*shared.Pipe)
 	for _, pipe := range workflowPayload.WorkflowMetadata.Pipes {
 		ss.mockboard.WorkflowMetadata[id].Pipes[pipe.ID] = pipe
@@ -124,6 +133,7 @@ func (ss *TrafficControlService) updateWorkflow(request *model.Request, core ser
 	ss.mockboard.WorkflowMetadata[id].Description = &workflowPayload.WorkflowMetadata.Description
 	ss.mockboard.WorkflowMetadata[id].Summary = &workflowPayload.WorkflowMetadata.Summary
 	ss.mockboard.WorkflowMetadata[id].WorkflowName = &workflowPayload.WorkflowMetadata.WorkflowName
+
 	ss.mutex.Unlock()
 
 	ss.updateState()

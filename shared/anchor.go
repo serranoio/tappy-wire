@@ -533,37 +533,38 @@ func (a *Anchor) receiveDataFromPipes(mb *Mockboard) ([]AnchorReference, []strin
 
 	for _, rp := range a.ReceiverPipes {
 		for _, wf := range mb.GetActivatedWorkflows() {
-			for pipeID, pipe := range wf.Pipes {
+			for pipeID, _ := range wf.Pipes {
 				if pipeID == rp {
 					// $query.name + 4 + 6 + $properties.id
+					inputAnchor, _ := mb.GetPipeAnchors(pipeID)
 					// $query.name
 					// if the expression contains the full property
-					if pipe.Input.ExpressionValue == "" {
+					if inputAnchor.ExpressionValue == "" {
 						messages = append(messages, &Message{
-							Message: fmt.Sprintf("anchor %s (id: %s) has no value, not sending %s", pipe.Input.GetFullProperty(), pipe.Input.ID, pipe.Input.ExpressionValue),
+							Message: fmt.Sprintf("anchor %s (id: %s) has no value, not sending %s", inputAnchor.GetFullProperty(), inputAnchor.ID, inputAnchor.ExpressionValue),
 							SenderAnchor: MessageAnchor{
-								ID:    pipe.Input.ID,
-								Value: pipe.Input.ExpressionValue,
+								ID:    inputAnchor.ID,
+								Value: inputAnchor.ExpressionValue,
 							},
 						})
 
 						continue
 					}
-					if strings.Contains(a.Expression, pipe.Input.GetFullProperty()) {
-						values = append(values, pipe.Input.ExpressionValue)
+					if strings.Contains(a.Expression, inputAnchor.GetFullProperty()) {
+						values = append(values, inputAnchor.ExpressionValue)
 						ars = append(ars, AnchorReference{
-							ID:       pipe.Input.ID,
-							Property: pipe.Input.GetFullProperty(),
-							PathName: pipe.Input.PathName,
+							ID:       inputAnchor.ID,
+							Property: inputAnchor.GetFullProperty(),
+							PathName: inputAnchor.PathName,
 						})
 						messages = append(messages, &Message{
-							Message: fmt.Sprintf("anchor %s (id: %s) is sending %s", pipe.Input.GetFullProperty(), pipe.Input.ID, pipe.Input.ExpressionValue),
+							Message: fmt.Sprintf("anchor %s (id: %s) is sending %s", inputAnchor.GetFullProperty(), inputAnchor.ID, inputAnchor.ExpressionValue),
 							ReceiverAnchor: MessageAnchor{
 								ID: a.ID,
 							},
 							SenderAnchor: MessageAnchor{
-								ID:    pipe.Input.ID,
-								Value: pipe.Input.ExpressionValue,
+								ID:    inputAnchor.ID,
+								Value: inputAnchor.ExpressionValue,
 							},
 						})
 					}

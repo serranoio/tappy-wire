@@ -47,7 +47,6 @@ export class Schema {
 
   normalize() {
     const schema = btoa(JSON.stringify(this.schema));
-    console.log(schema);
 
     return {
       schema: schema,

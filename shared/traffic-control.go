@@ -72,6 +72,35 @@ func convertPathToGlob(path string) glob.Glob {
 	return glob.MustCompile(path)
 }
 
+func (m *Mockboard) getAllMatchingAnchors(ids []*string) []*Anchor {
+	var anchors []*Anchor
+	for _, workflow := range m.GetActivatedWorkflows() {
+		for _, anchor := range workflow.Anchors {
+			for _, id := range ids {
+				if anchor.ID == *id {
+					anchors = append(anchors, anchor)
+				}
+			}
+		}
+	}
+	return anchors
+}
+
+func (m *Mockboard) GetPipeAnchors(pipeID string) (*Anchor, []*Anchor) {
+	var input *Anchor
+	var outputs []*Anchor
+	for _, workflow := range m.GetActivatedWorkflows() {
+		for _, pipe := range workflow.Pipes {
+			if pipeID == pipe.ID {
+				input = m.getAllMatchingAnchors([]*string{pipe.Input})[0]
+				outputs = m.getAllMatchingAnchors(pipe.Outputs)
+			}
+		}
+	}
+
+	return input, outputs
+}
+
 func (m *Mockboard) IsRequestOnMockboard(requestPath string) bool {
 	for _, workflow := range m.GetActivatedWorkflows() {
 		_, _, foundStep := workflow.MatchRequestedPath(requestPath)
@@ -85,18 +114,12 @@ func (m *Mockboard) IsRequestOnMockboard(requestPath string) bool {
 
 func (wfm *WorkflowMetadata) getStepMetadataAnchors(stepID string) ([]*Anchor, bool) {
 	anchors := []*Anchor{}
-	for _, pipe := range wfm.Pipes {
-		if pipe.Input.StepID == stepID {
-			anchors = append(anchors, pipe.Input)
+	for _, anchor := range wfm.Anchors {
+		if anchor.StepID == stepID {
+			anchors = append(anchors, anchor)
 		}
-
-		for _, output := range pipe.Outputs {
-			if output.StepID == stepID {
-				anchors = append(anchors, output)
-			}
-		}
-
 	}
+
 	if len(anchors) > 0 {
 		return anchors, true
 	}
@@ -126,6 +149,7 @@ type WorkflowMetadata struct {
 	Description   *string                  `json:"description"`
 	WorkflowName  *string                  `json:"workflowName"`
 	Pipes         map[string]*Pipe         `json:"pipes"`
+	Anchors       []*Anchor                `json:"anchors"`
 }
 
 type Mockboard struct {
@@ -313,19 +337,19 @@ func (mb *Mockboard) GetActivatedWorkflows() []*WorkflowMetadata {
 type Pipe struct {
 	ID                  string    `json:"id"`
 	Name                *string   `json:"name"`
-	Input               *Anchor   `json:"input"`
-	Outputs             []*Anchor `json:"outputs"`
+	Input               *string   `json:"input"`
+	Outputs             []*string `json:"outputs"`
 	ExposeOutOfWorkflow bool      `json:"exposeOutOfWorkflow"`
 	IsPopulated         bool      `json:"isPopulated"`
 }
 
-func NewPipe(id string, referenceType AnchorType, propertyType Property) *Pipe {
+func NewPipe(id string) *Pipe {
 	name := ""
 	return &Pipe{
 		ID:                  id,
 		Name:                &name,
-		Input:               NewAnchor(id, referenceType, propertyType),
-		Outputs:             []*Anchor{},
+		Input:               &id,
+		Outputs:             []*string{},
 		ExposeOutOfWorkflow: false,
 		IsPopulated:         false,
 	}

@@ -49,22 +49,16 @@ func (ss *TrafficControlService) updateAnchor(request *model.Request, core servi
 
 	ss.mutex.Lock()
 	// I am sending in the
+	workflow := ss.mockboard.WorkflowMetadata[anchorPayload.WorkflowID]
 
-	pipe := ss.mockboard.WorkflowMetadata[anchorPayload.WorkflowID].Pipes[anchorPayload.PipeID]
-	founNum := -1
-	for num, anchor := range pipe.Outputs {
+	foundNum := -1
+	for num, anchor := range workflow.Anchors {
 		if anchor.ID == anchorPayload.Anchor.ID {
-			founNum = num
+			foundNum = num
+			break
 		}
 	}
-	if founNum >= 0 {
-		pipe.Outputs[founNum] = anchorPayload.Anchor
-
-	}
-
-	if pipe.Input.ID == anchorPayload.Anchor.ID {
-		pipe.Input = anchorPayload.Anchor
-	}
+	workflow.Anchors[foundNum] = anchorPayload.Anchor
 
 	ss.mutex.Unlock()
 }

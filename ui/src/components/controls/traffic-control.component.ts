@@ -23,6 +23,7 @@ import localforage from "localforage";
 import { SlDrawer } from "@shoelace-style/shoelace";
 import { PathItem } from "@/model/paths";
 import {
+  NewAnchorEvent,
   SelectingAnchorEvent,
   SendTransactionToMockboard,
   UpdateStepMetadataEvent,
@@ -177,6 +178,12 @@ export class TrafficControlComponent extends LitElement {
 
   @query("#fly-container") flyContainer;
 
+  getSelectedWorkflow(): WorkflowMetadata {
+    return this.mockBoard.workflowMetadatas.get(
+      this.selectedWorkflow?.workflowID
+    );
+  }
+
   populateStateFromMockboard() {
     this.workflows = normalizeMap(this.mockBoard.workflowMetadatas).map(
       (value: WorkflowMetadata) => {
@@ -184,6 +191,7 @@ export class TrafficControlComponent extends LitElement {
       }
     );
 
+    // select the first workflow
     if (this.workflows.length > 0) {
       this.changeSelectedWorkflow(this.workflows[0]);
     }
@@ -233,6 +241,11 @@ export class TrafficControlComponent extends LitElement {
     document.addEventListener(
       UpdateStepMetadataEvent,
       this.listenToStepMetadataChanges.bind(this)
+    );
+
+    document.addEventListener(
+      NewAnchorEvent,
+      this.listenToNewAnchorEvent.bind(this)
     );
 
     document.addEventListener(
@@ -343,13 +356,31 @@ export class TrafficControlComponent extends LitElement {
   listenToSelectedAnchor(e: CustomEvent<Anchor>) {
     const a = e.detail;
 
+    // when there's already an anchor on this value
+    this.selectedAnchor = a;
+
     if (this.selectedPipe) {
-      this.selectedPipe.addOutput(a);
+      this.selectedPipe.addOutput(a, this.getSelectedWorkflow());
       this.selectedPipe.updatePipe(this.selectedWorkflow.workflowID, this._bus);
-    } else {
-      this.selectedAnchor = a;
     }
 
+    this.requestUpdate();
+  }
+
+  listenToNewAnchorEvent(e: CustomEvent<Anchor>) {
+    const a = e.detail;
+
+    // we're creating pipes from an anchor so we don't want to select the anchor
+    if (this.selectedPipe) {
+      this.selectedPipe.addOutput(a, this.getSelectedWorkflow());
+      this.selectedPipe.updatePipe(this.selectedWorkflow.workflowID, this._bus);
+    } else {
+      // when theres no pipe, this is a normal new anchor
+      this.selectedAnchor = a;
+      this.selectedAnchor.expression = this.selectedAnchor.getExpression();
+    }
+
+    this.mockBoard.addNewAnchor(this.selectedWorkflow.workflowID, a, this._bus);
     this.requestUpdate();
   }
 
@@ -540,9 +571,7 @@ export class TrafficControlComponent extends LitElement {
           return html`
             <arazzo-step
               .selectedAnchor=${this.selectedAnchor}
-              .anchors=${this.pipes.flatMap((pipe: Pipe) =>
-                step.doesStepContainAnchors(pipe)
-              )}
+              .anchors=${this.selectedWorkflow.getAnchorsOnStep(step.id)}
               .stepMetadata=${step}
               .workflowID=${this.selectedWorkflow.workflowID}
             ></arazzo-step>
@@ -558,7 +587,7 @@ export class TrafficControlComponent extends LitElement {
     allAnchorBadges.forEach((anchorBadge: HTMLElement) => {
       const ids = getIdsFromAnchorBadges(anchorBadge);
       ids.forEach((id) => {
-        if (id === this.selectedPipe.input.id) {
+        if (id === this.selectedPipe.input) {
           const rect = anchorBadge.getBoundingClientRect();
           this.selectedPipeCoords.x = rect.x - rect.width / 2;
           this.selectedPipeCoords.y = rect.y - rect.height / 2;
@@ -647,6 +676,7 @@ export class TrafficControlComponent extends LitElement {
 
   render() {
     this.mockBoard.debug(false, false);
+    console.log(this.mockBoard);
 
     return html`
       ${renderAllPipes(this.pipes, this.renderRoot)}

@@ -43,3 +43,7 @@ Assume all responses have defined httpMethods
 ## AI Notes
 
 Unit testing is amazing with AI. I can definitely speed up the process by giving the AI the context it needs
+
+## Known bugs
+
+- We don't support anchor badges rendering on different codes

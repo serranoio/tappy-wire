@@ -59,7 +59,9 @@ export const renderPipeBankIsland = (
   if (thisComponent.selectedPipe) {
     moveContainers = 200;
     pipeTitle.tooltip = "Feed references values";
-    pipeTitle.title = `Pipe data from ${thisComponent.selectedPipe.input.getFullProperty()}`;
+    pipeTitle.title = `Pipe data from ${thisComponent
+      .getSelectedWorkflow()
+      .getInputAnchorInThisPipe(thisComponent.selectedPipe.id)}`;
   }
 
   let variableIslandControl = html`
@@ -105,16 +107,21 @@ export const renderPipeBankIsland = (
         <div class="show-pipe">
           <div>
             ${renderAnchorBadge(
-              thisComponent.selectedPipe.input,
+              thisComponent
+                .getSelectedWorkflow()
+                .getInputAnchorInThisPipe(thisComponent.selectedPipe.input),
               "right",
               thisComponent
             )}
           </div>
           <div><sl-icon name="chevron-double-right"></sl-icon></div>
           <div class="pipe-outputs">
-            ${thisComponent.selectedPipe.outputs.map((output: Anchor) => {
-              return renderAnchorBadge(output, "left", thisComponent);
-            })}
+            ${thisComponent
+              .getSelectedWorkflow()
+              .getOutputAnchorsInThisPipe(thisComponent.selectedPipe.outputs)
+              .map((output: Anchor) => {
+                return renderAnchorBadge(output, "left", thisComponent);
+              })}
           </div>
         </div>
       </div>
@@ -224,7 +231,7 @@ export const renderPipeBankIsland = (
                     thisComponent.requestUpdate();
                   }}
                 >
-                  ${pipe.renderPipeBadge()}
+                  ${pipe.renderPipeBadge(thisComponent.getSelectedWorkflow())}
                 </div>
               `;
             }

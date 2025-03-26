@@ -26,6 +26,7 @@ import "@shoelace-style/shoelace/dist/components/radio-group/radio-group.js";
 import "@shoelace-style/shoelace/dist/components/icon-button/icon-button.js";
 import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/alert/alert.js";
 import "https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.1/cdn/components/dialog/dialog.js";
+import "@shoelace-style/shoelace/dist/components/copy-button/copy-button.js";
 
 import "@pb33f/cowboy-components/cowboy-components.css";
 import "@pb33f/cowboy-components/components/header/header.js";

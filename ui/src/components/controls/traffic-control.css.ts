@@ -137,6 +137,8 @@ export default css`
 
   .input-expressions {
     border: 1px dashed var(--primary-color);
+    overflow-y: scroll;
+    height: 200px;
   }
 
   .variable-island-control {
